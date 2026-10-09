@@ -37,6 +37,8 @@
 <ul><li>Package identity: <code><a href="../reference/zumsgpack_info.html">zumsgpack_info()</a></code>, and links to zufast and zubin through <code>LinkingTo</code> (roadmap Stage 0).</li>
 <li>
 <code><a href="../reference/msgpack_validate.html">msgpack_validate()</a></code> checks MessagePack without building any R value: every head, length and count against the bytes there are, UTF-8 in every <code>str</code>, the timestamp extension’s three layouts, duplicate map keys by value, and the <code>max_depth</code>, <code>max_size</code> and <code>max_items</code> limits. Faults are classed conditions inheriting <code>zumsgpack_error</code>, with the byte offset (roadmap Stage 1).</li>
+<li>
+<code><a href="../reference/msgpack_decode.html">msgpack_decode()</a></code>, <code><a href="../reference/msgpack_decode.html">msgpack_decode_seq()</a></code> and <code><a href="../reference/msgpack_read.html">msgpack_read()</a></code> build R values from checked input: integers by size, floats exactly, arrays simplified by zucbor’s lattice, maps as named lists or <code>msgpack_map</code>, exts as <code>msgpack_ext</code>, and integers beyond 2^53 by <code>big_integers</code>. <code><a href="../reference/msgpack-values.html">msgpack_map()</a></code>, <code><a href="../reference/msgpack-values.html">msgpack_ext()</a></code> and <code><a href="../reference/msgpack-values.html">msgpack_bigint()</a></code> construct the values R has no type for (roadmap Stage 2).</li>
 </ul></div>
   </main></div>
 

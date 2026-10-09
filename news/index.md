@@ -12,3 +12,16 @@
   the `max_depth`, `max_size` and `max_items` limits. Faults are classed
   conditions inheriting `zumsgpack_error`, with the byte offset (roadmap
   Stage 1).
+- [`msgpack_decode()`](https://pedrobtz.github.io/zumsgpack/reference/msgpack_decode.md),
+  [`msgpack_decode_seq()`](https://pedrobtz.github.io/zumsgpack/reference/msgpack_decode.md)
+  and
+  [`msgpack_read()`](https://pedrobtz.github.io/zumsgpack/reference/msgpack_read.md)
+  build R values from checked input: integers by size, floats exactly,
+  arrays simplified by zucbor’s lattice, maps as named lists or
+  `msgpack_map`, exts as `msgpack_ext`, and integers beyond 2^53 by
+  `big_integers`.
+  [`msgpack_map()`](https://pedrobtz.github.io/zumsgpack/reference/msgpack-values.md),
+  [`msgpack_ext()`](https://pedrobtz.github.io/zumsgpack/reference/msgpack-values.md)
+  and
+  [`msgpack_bigint()`](https://pedrobtz.github.io/zumsgpack/reference/msgpack-values.md)
+  construct the values R has no type for (roadmap Stage 2).
