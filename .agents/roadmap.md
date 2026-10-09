@@ -325,7 +325,7 @@ chunks, the odd-map guard, tag-content rules, half floats, simple values,
 
 ## Stage 2 — The build phase: scalars, arrays, the lattice, maps · M
 
-**Status:** not started.
+**Status:** complete.
 
 **Do**
 
@@ -387,6 +387,38 @@ chunks, the odd-map guard, tag-content rules, half floats, simple values,
   then decodes in full.
 - `msgpack_read()` on an endless connection stops one byte past
   `max_size`.
+
+**What actually happened**
+
+- **The builder is zucbor's, re-pointed.** `src/zmp_build.c` keeps the
+  staged arrays, the lattice, the `I()` marking and the map paths line for
+  line; what changed is that it reads heads with `zmp_read_head()` at a
+  cursor instead of walking TinyCBOR's iterator. Containers still take
+  their size from the plan, never from a head.
+- **The head's integer form made the ladder free.** `zmp_read_head()`
+  stores a negative integer as `-(v + 1)` with a flag, which is CBOR's own
+  encoding of negatives, so zucbor's `integer_value()` applies unchanged:
+  `integer` from -(2^31 - 1) to 2^31 - 1, `double` within 2^53 (both
+  signs, so -2^53 is a double), then `big_integers`. `msgpack_bigint`'s
+  decimal comes from `zuf_write_u64()`.
+- **Key names for `map_keys = "string"` are zumsgpack's own.**
+  MessagePack has no notation, so non-`str` keys are named by a small
+  JSON-like formatter in the build phase: integers in decimal, floats by
+  `zuf_format_f64_opt()` with a forced `.0` (so `1.0` never reads as `1`),
+  `nil`, `true`, `h'..'`, `ext(t, h'..')`, `[..]` and `{..}`. Keys that
+  collide once named are `zumsgpack_duplicate_key`
+  (`ZMP_ERR_KEY_COLLISION`), as in zucbor.
+- **The suite compares by shape.** jsonlite reads `{}` as an unnamed
+  `list()`, the same as `[]`, and a one-element array decodes as an `I()`
+  vector, so the suite test flattens both sides to one JSON-like shape;
+  the per-row tests check types exactly. Timestamps wait for Stage 4.
+- **The interrupt test runs unskipped locally** (1.5 million empty maps,
+  interrupted by `setTimeLimit()`, then decoded in full), and the
+  gctorture test compares five mixed inputs and one fault with the
+  untortured results.
+- `tools/sanitizer-exercise.R` now decodes every seed under all 36 option
+  sets, as one object and as a sequence: 138,384 decodes, faults
+  included, in about eleven seconds unsanitized.
 
 ---
 

@@ -8,3 +8,9 @@
   value, and the `max_depth`, `max_size` and `max_items` limits. Faults are
   classed conditions inheriting `zumsgpack_error`, with the byte offset
   (roadmap Stage 1).
+* `msgpack_decode()`, `msgpack_decode_seq()` and `msgpack_read()` build R
+  values from checked input: integers by size, floats exactly, arrays
+  simplified by zucbor's lattice, maps as named lists or `msgpack_map`,
+  exts as `msgpack_ext`, and integers beyond 2^53 by `big_integers`.
+  `msgpack_map()`, `msgpack_ext()` and `msgpack_bigint()` construct the
+  values R has no type for (roadmap Stage 2).
