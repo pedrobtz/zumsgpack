@@ -9,7 +9,7 @@ objects give identical bytes in every session and on every platform."></head><bo
 
     <a class="navbar-brand me-2" href="../index.html">zumsgpack</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.0.9000</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Unreleased version">0.0.0.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -17,7 +17,14 @@ objects give identical bytes in every session and on every platform."></head><bo
     </button>
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
-      <ul class="navbar-nav me-auto"><li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
+      <ul class="navbar-nav me-auto"><li class="nav-item"><a class="nav-link" href="../articles/zumsgpack.html">Get started</a></li>
+<li class="active nav-item"><a class="nav-link" href="../reference/index.html">Reference</a></li>
+<li class="nav-item dropdown">
+  <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles"><li><a class="dropdown-item" href="../articles/zumsgpack.html">Getting started with zumsgpack</a></li>
+    <li><a class="dropdown-item" href="../articles/examples.html">Examples and recipes</a></li>
+    <li><a class="dropdown-item" href="../articles/untrusted.html">Decoding untrusted MessagePack</a></li>
+  </ul></li>
 <li class="nav-item"><a class="nav-link" href="../news/index.html">Changelog</a></li>
       </ul><ul class="navbar-nav"><li class="nav-item"><form class="form-inline" role="search">
  <input class="form-control" type="search" name="search-input" id="search-input" autocomplete="off" aria-label="Search site" placeholder="Search for" data-search-index="../search.json"></form></li>
@@ -92,15 +99,20 @@ changes the value their users see.</p></dd>
     <div class="section level2">
     <h2 id="r-to-messagepack">R to MessagePack<a class="anchor" aria-label="anchor" href="#r-to-messagepack"></a></h2>
 
-<table class="table table"><tr><td>R</td><td>MessagePack</td></tr><tr><td><code>NULL</code>, <code>NA</code> of any type</td><td><code>nil</code></td></tr><tr><td><code>TRUE</code>, <code>FALSE</code></td><td><code>true</code>, <code>false</code></td></tr><tr><td><code>integer</code></td><td>the smallest integer form</td></tr><tr><td><code>double</code>, whole, within -2^63 .. 2^64 - 1, not <code>-0</code></td><td>the smallest integer form</td></tr><tr><td>any other <code>double</code>, including <code>NaN</code>, <code>Inf</code> and <code>-0</code></td><td><code>float 64</code> (see <code>floats</code>)</td></tr><tr><td><code>character</code></td><td><code>str</code>, UTF-8</td></tr><tr><td><code>raw</code></td><td>one <code>bin</code>, whatever its length</td></tr><tr><td><code>factor</code></td><td>its labels, as <code>str</code></td></tr><tr><td><code>msgpack_bigint</code></td><td>the integer form if within -2^63 .. 2^64 - 1, else refused</td></tr><tr><td><code>msgpack_map</code>, <code>msgpack_ext</code></td><td>a map, an ext</td></tr><tr><td>unnamed list or vector</td><td>array</td></tr><tr><td>fully named list or vector</td><td>map with <code>str</code> keys</td></tr></table><p>A length-one atomic vector is a single value, not an array, unless it is
+<table class="table table"><tr><td>R</td><td>MessagePack</td></tr><tr><td><code>NULL</code>, <code>NA</code> of any type</td><td><code>nil</code></td></tr><tr><td><code>TRUE</code>, <code>FALSE</code></td><td><code>true</code>, <code>false</code></td></tr><tr><td><code>integer</code></td><td>the smallest integer form</td></tr><tr><td><code>double</code>, whole, within -2^63 .. 2^64 - 1, not <code>-0</code></td><td>the smallest integer form</td></tr><tr><td>any other <code>double</code>, including <code>NaN</code>, <code>Inf</code> and <code>-0</code></td><td><code>float 64</code> (see <code>floats</code>)</td></tr><tr><td><code>character</code></td><td><code>str</code>, UTF-8</td></tr><tr><td><code>raw</code></td><td>one <code>bin</code>, whatever its length</td></tr><tr><td><code>factor</code></td><td>its labels, as <code>str</code></td></tr><tr><td><code>POSIXct</code></td><td>ext -1, the smallest of the three timestamp layouts that holds it</td></tr><tr><td><code>Date</code></td><td>ext -1 at midnight UTC</td></tr><tr><td><code>msgpack_bigint</code></td><td>the integer form if within -2^63 .. 2^64 - 1, else refused</td></tr><tr><td><code>msgpack_map</code>, <code>msgpack_ext</code></td><td>a map, an ext</td></tr><tr><td>unnamed list or vector</td><td>array</td></tr><tr><td>fully named list or vector</td><td>map with <code>str</code> keys</td></tr><tr><td><code>data.frame</code></td><td>array of maps, one per row</td></tr></table><p>A length-one atomic vector is a single value, not an array, unless it is
 wrapped in <code><a href="https://rdrr.io/r/base/AsIs.html" class="external-link">I()</a></code> or <code>auto_unbox = FALSE</code>. A matrix is a flat array in
-column-major order.</p>
+column-major order. A data frame is an array with one map per row, keyed
+by the column names; <code>NA</code> is <code>nil</code>, and row names are not written. An
+object whose class zumsgpack does not know goes through <code><a href="as_msgpack.html">as_msgpack()</a></code>
+first, so a method can say how to write it; without one it is written as
+its underlying type.</p>
 <p>Whole doubles become integers because R has no integer literal: <code>-7</code>
 written in R is a double, and as a float it would be a different value
 from the integer a protocol expects. So <code>1L</code> and <code>1</code> encode identically.</p>
 <p>These have no MessagePack form and raise <code>zumsgpack_unsupported_type</code>:
-complex numbers, functions, environments, external pointers, S4 objects
-and <code>POSIXlt</code> (convert with <code><a href="https://rdrr.io/r/base/as.POSIXlt.html" class="external-link">as.POSIXct()</a></code>). Names that are partly
+complex numbers, functions, environments, external pointers, S4 objects,
+<code>POSIXlt</code> (convert with <code><a href="https://rdrr.io/r/base/as.POSIXlt.html" class="external-link">as.POSIXct()</a></code>) and a data frame column that is
+itself a matrix. Names that are partly
 missing, <code>NA</code> or empty are <code>zumsgpack_invalid_argument</code>, and two keys
 that encode identically are <code>zumsgpack_duplicate_key</code>.</p>
     </div>
@@ -116,7 +128,10 @@ every <code>NaN</code> as one canonical quiet NaN, since R's <code>NaN</code> bi
 between platforms;</p></li>
 <li><p><code>str</code> for text and <code>bin</code> for bytes, never the pre-2013 <code>raw</code>;</p></li>
 <li><p>map entries sorted by the bytewise order of their encoded keys, with
-no duplicate keys.</p></li>
+no duplicate keys;</p></li>
+<li><p>the smallest timestamp layout that holds the instant, after fixing it
+to whole nanoseconds by one rule: the seconds by <code><a href="https://rdrr.io/r/base/Round.html" class="external-link">floor()</a></code>, the
+fraction rounded to the nearest nanosecond, a carry at 10^9.</p></li>
 </ol><p>These are zumsgpack's rules, not the format's: another decoder is not
 entitled to expect them, and <code><a href="msgpack_validate.html">msgpack_validate()</a></code> does not check for
 them. They make the output byte-identical across calls, sessions and
@@ -129,12 +144,16 @@ platforms, which a signature or a content hash over the bytes needs.</p>
 <p>Decoding what <code>msgpack_encode()</code> wrote gives back the value, except
 that: <code>NA</code> comes back as <code>NULL</code>, or <code>NA</code> of the vector's type; a whole
 double comes back as an integer; <code>list(1L)</code> and <code>1L</code> both encode as <code>1</code>;
-a <code>NaN</code> payload is not kept; and a <code>float 32</code> input re-encodes as
-<code>float 64</code> unless <code>floats = "shortest"</code>.</p>
+a <code>NaN</code> payload is not kept; a <code>float 32</code> input re-encodes as <code>float 64</code>
+unless <code>floats = "shortest"</code>; a factor comes back as its labels; a
+<code>Date</code> comes back as a <code>POSIXct</code> at midnight UTC; a <code>POSIXct</code> keeps its
+fractional seconds only to double precision, about 2^-22 s near 2026;
+and a data frame loses its row names, its factor levels and its column
+order, since map keys are sorted.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
-    <div class="dont-index"><p><code><a href="msgpack_decode.html">msgpack_decode()</a></code>, <a href="msgpack-values.html">msgpack-values</a>.</p></div>
+    <div class="dont-index"><p><code><a href="msgpack_decode.html">msgpack_decode()</a></code>, <code><a href="as_msgpack.html">as_msgpack()</a></code>, <a href="msgpack-values.html">msgpack-values</a>.</p></div>
     </div>
 
     <div class="section level2">
@@ -157,6 +176,12 @@ a <code>NaN</code> payload is not kept; and a <code>float 32</code> input re-enc
 <span class="r-in"><span></span></span>
 <span class="r-in"><span><span class="fu">msgpack_encode_seq</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span><span class="fl">1</span>, <span class="st">"a"</span>, <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span></span></span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] 01 a1 61 c3</span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># A timestamp, and a table as an array of records.</span></span></span>
+<span class="r-in"><span><span class="fu">msgpack_encode</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/as.POSIXlt.html" class="external-link">as.POSIXct</a></span><span class="op">(</span><span class="st">"2026-01-01"</span>, tz <span class="op">=</span> <span class="st">"UTC"</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] d6 ff 69 55 b9 00</span>
+<span class="r-in"><span><span class="fu">msgpack_encode</span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/data.frame.html" class="external-link">data.frame</a></span><span class="op">(</span>id <span class="op">=</span> <span class="fl">1</span><span class="op">:</span><span class="fl">2</span>, name <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"a"</span>, <span class="st">"b"</span><span class="op">)</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span>  [1] 92 82 a2 69 64 01 a4 6e 61 6d 65 a1 61 82 a2 69 64 02 a4 6e 61 6d 65 a1 62</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>

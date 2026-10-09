@@ -22,7 +22,7 @@
 
     <a class="navbar-brand me-2" href="index.html">zumsgpack</a>
 
-    <small class="nav-text text-muted me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="">0.0.0.9000</small>
+    <small class="nav-text text-danger me-auto" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Unreleased version">0.0.0.9000</small>
 
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbar" aria-controls="navbar" aria-expanded="false" aria-label="Toggle navigation">
@@ -31,7 +31,16 @@
 
     <div id="navbar" class="collapse navbar-collapse ms-3">
       <ul class="navbar-nav me-auto">
+<li class="nav-item"><a class="nav-link" href="articles/zumsgpack.html">Get started</a></li>
 <li class="nav-item"><a class="nav-link" href="reference/index.html">Reference</a></li>
+<li class="nav-item dropdown">
+  <button class="nav-link dropdown-toggle" type="button" id="dropdown-articles" data-bs-toggle="dropdown" aria-expanded="false" aria-haspopup="true">Articles</button>
+  <ul class="dropdown-menu" aria-labelledby="dropdown-articles">
+<li><a class="dropdown-item" href="articles/zumsgpack.html">Getting started with zumsgpack</a></li>
+    <li><a class="dropdown-item" href="articles/examples.html">Examples and recipes</a></li>
+    <li><a class="dropdown-item" href="articles/untrusted.html">Decoding untrusted MessagePack</a></li>
+  </ul>
+</li>
 <li class="nav-item"><a class="nav-link" href="news/index.html">Changelog</a></li>
       </ul>
 <ul class="navbar-nav">
@@ -51,14 +60,105 @@
 </h1></div>
 <!-- badges: start -->
 
-<p>zumsgpack encodes R values as <a href="https://msgpack.org" class="external-link">MessagePack</a> and decodes MessagePack into ordinary R vectors and lists. Input is checked whole, against size, depth and item limits, before any R object is built; encoding is deterministic. It follows <a href="https://github.com/pedrobtz/zucbor" class="external-link">zucbor</a>’s design, so code written for one reads like code written for the other.</p>
-<p>The package is under development; see <code>.agents/roadmap.md</code>.</p>
+<p>zumsgpack reads and writes <a href="https://msgpack.org" class="external-link">MessagePack</a>, the compact binary format behind Redis modules, Fluentd, neovim’s RPC and many telemetry protocols, from R.</p>
+<ul>
+<li>
+<strong>Untrusted input is checked whole before anything is built.</strong> Every head, length and count is checked against the bytes there are, every string’s UTF-8 and every timestamp’s layout are verified, maps with the same key twice are refused, and size, depth and item limits apply, all before R allocates a thing. A five-byte header claiming four billion elements costs nothing.</li>
+<li>
+<strong>Encoding is deterministic.</strong> The smallest integer forms, sorted map keys and one form for every value: identical R values give identical bytes on every platform, which a hash or signature over the bytes needs.</li>
+<li>
+<strong>The mapping round-trips.</strong> Arrays become vectors when their elements agree and lists otherwise; timestamps become <code>POSIXct</code>; extension types get meaning through handlers and the <code><a href="reference/as_msgpack.html">as_msgpack()</a></code> generic; arrays of records become data frames on request.</li>
+</ul>
+<p>It follows <a href="https://github.com/pedrobtz/zucbor" class="external-link">zucbor</a>’s design for CBOR, so code written for one reads like code written for the other.</p>
 <div class="section level2">
 <h2 id="installation">Installation<a class="anchor" aria-label="anchor" href="#installation"></a>
 </h2>
 <div class="sourceCode" id="cb1"><pre class="downlit sourceCode r">
 <code class="sourceCode R"><span><span class="co"># install.packages("pak")</span></span>
 <span><span class="fu">pak</span><span class="fu">::</span><span class="fu"><a href="https://pak.r-lib.org/reference/pak.html" class="external-link">pak</a></span><span class="op">(</span><span class="st">"pedrobtz/zumsgpack"</span><span class="op">)</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="example">Example<a class="anchor" aria-label="anchor" href="#example"></a>
+</h2>
+<div class="sourceCode" id="cb2"><pre class="downlit sourceCode r">
+<code class="sourceCode R"><span><span class="kw"><a href="https://rdrr.io/r/base/library.html" class="external-link">library</a></span><span class="op">(</span><span class="va"><a href="https://github.com/pedrobtz/zumsgpack" class="external-link">zumsgpack</a></span><span class="op">)</span></span>
+<span></span>
+<span><span class="va">b</span> <span class="op">&lt;-</span> <span class="fu"><a href="reference/msgpack_encode.html">msgpack_encode</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/list.html" class="external-link">list</a></span><span class="op">(</span>name <span class="op">=</span> <span class="st">"sensor-1"</span>, values <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">20.5</span>, <span class="fl">21.25</span><span class="op">)</span>, ok <span class="op">=</span> <span class="cn">TRUE</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="va">b</span></span>
+<span><span class="co">#&gt;  [1] 83 a2 6f 6b c3 a4 6e 61 6d 65 a8 73 65 6e 73 6f 72 2d 31 a6 76 61 6c 75 65</span></span>
+<span><span class="co">#&gt; [26] 73 92 cb 40 34 80 00 00 00 00 00 cb 40 35 40 00 00 00 00 00</span></span>
+<span><span class="co"># Map keys are sorted (shorter first), so the bytes never depend on the</span></span>
+<span><span class="co"># order the list was built in.</span></span>
+<span><span class="fu"><a href="https://rdrr.io/r/utils/str.html" class="external-link">str</a></span><span class="op">(</span><span class="fu"><a href="reference/msgpack_decode.html">msgpack_decode</a></span><span class="op">(</span><span class="va">b</span><span class="op">)</span><span class="op">)</span></span>
+<span><span class="co">#&gt; List of 3</span></span>
+<span><span class="co">#&gt;  $ ok    : logi TRUE</span></span>
+<span><span class="co">#&gt;  $ name  : chr "sensor-1"</span></span>
+<span><span class="co">#&gt;  $ values: num [1:2] 20.5 21.2</span></span></code></pre></div>
+</div>
+<div class="section level2">
+<h2 id="the-mapping-on-one-screen">The mapping, on one screen<a class="anchor" aria-label="anchor" href="#the-mapping-on-one-screen"></a>
+</h2>
+<table class="table">
+<thead><tr>
+<th>MessagePack</th>
+<th>R</th>
+</tr></thead>
+<tbody>
+<tr>
+<td>integer</td>
+<td>
+<code>integer</code>, <code>double</code> up to 2^53, then <code>msgpack_bigint</code>
+</td>
+</tr>
+<tr>
+<td>
+<code>float 32</code>, <code>float 64</code>
+</td>
+<td><code>double</code></td>
+</tr>
+<tr>
+<td>
+<code>true</code>, <code>false</code>, <code>nil</code>
+</td>
+<td>
+<code>logical</code>; <code>NULL</code>, or <code>NA</code> in a vector</td>
+</tr>
+<tr>
+<td>
+<code>str</code>, <code>bin</code>
+</td>
+<td>
+<code>character</code>, <code>raw</code>
+</td>
+</tr>
+<tr>
+<td>array</td>
+<td>atomic vector when the elements agree, else <code>list</code>
+</td>
+</tr>
+<tr>
+<td>map with string keys</td>
+<td>named <code>list</code>; other maps <code>msgpack_map</code>
+</td>
+</tr>
+<tr>
+<td>timestamp (ext -1)</td>
+<td>
+<code>POSIXct</code>, UTC</td>
+</tr>
+<tr>
+<td>other ext</td>
+<td>
+<code>msgpack_ext</code>, or a handler’s result</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section level2">
+<h2 id="what-it-is-not">What it is not<a class="anchor" aria-label="anchor" href="#what-it-is-not"></a>
+</h2>
+<p>zumsgpack does not invent a text notation for MessagePack (the format has none), does not read the pre-2013 “raw” type as both text and bytes, and has no schema language. Its deterministic encoding is its own: the MessagePack specification defines no canonical form, so another decoder is not entitled to expect one.</p>
+<p>Compared with <a href="https://cran.r-project.org/package=RcppMsgPack" class="external-link">RcppMsgPack</a>: zumsgpack checks input against limits before building anything, reads a stream in memory bounded by its largest object, converts timestamps, and needs no C++ runtime.</p>
 </div>
 </div>
   </main><aside class="col-md-3"><div class="links">

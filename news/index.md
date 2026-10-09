@@ -57,3 +57,5 @@
   check skips runs of fixed-size scalars by the head table, and the
   build writes an all-number array straight into its vector (roadmap
   Stage 7).
+- Documentation: a vignette on decoding untrusted MessagePack, a
+  getting-started article and an examples article (roadmap Stage 8).
