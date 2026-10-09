@@ -2,6 +2,8 @@
 
 ## All functions
 
+- [`as_msgpack()`](https://pedrobtz.github.io/zumsgpack/reference/as_msgpack.md)
+  : Teach msgpack_encode() a class
 - [`msgpack_map()`](https://pedrobtz.github.io/zumsgpack/reference/msgpack-values.md)
   [`msgpack_ext()`](https://pedrobtz.github.io/zumsgpack/reference/msgpack-values.md)
   [`msgpack_bigint()`](https://pedrobtz.github.io/zumsgpack/reference/msgpack-values.md)

@@ -14,22 +14,26 @@ msgpack_decode(
   x,
   simplify = c("preserve", "none"),
   map_keys = c("auto", "map", "string"),
+  ext = c("convert", "keep"),
   big_integers = c("bigint", "double", "error"),
   duplicate_keys = FALSE,
   max_depth = 256L,
   max_size = 64 * 1024^2,
-  max_items = 1e+06
+  max_items = 1e+06,
+  ext_handlers = NULL
 )
 
 msgpack_decode_seq(
   x,
   simplify = c("preserve", "none"),
   map_keys = c("auto", "map", "string"),
+  ext = c("convert", "keep"),
   big_integers = c("bigint", "double", "error"),
   duplicate_keys = FALSE,
   max_depth = 256L,
   max_size = 64 * 1024^2,
-  max_items = 1e+06
+  max_items = 1e+06,
+  ext_handlers = NULL
 )
 ```
 
@@ -55,6 +59,11 @@ msgpack_decode_seq(
   `nil`, `h'00ff'`, `ext(5, h'01')`, `[1, "a"]`); it is lossy, and
   refuses a map whose keys collide once named.
 
+- ext:
+
+  `"convert"` turns timestamps (ext -1) into `POSIXct` and keeps other
+  exts as `msgpack_ext`; `"keep"` makes every ext a `msgpack_ext`.
+
 - big_integers:
 
   What to do with an integer beyond 2^53, which a double cannot hold
@@ -79,6 +88,12 @@ msgpack_decode_seq(
   Most objects allowed, counting every array, map, key, value and
   element, or `Inf`.
 
+- ext_handlers:
+
+  `NULL`, or a list of functions of one argument, named by extension
+  type from `"-128"` to `"127"`, such as
+  `list("5" = function(data) ...)`. See "Extension handlers".
+
 ## Value
 
 The decoded value; for `msgpack_decode_seq()`, a list with one element
@@ -98,7 +113,8 @@ per object.
 | array | atomic vector when the elements agree, else `list` |
 | map with non-empty, unique `str` keys | named `list` |
 | any other map | `msgpack_map` (by `map_keys`) |
-| ext | `msgpack_ext` |
+| ext -1 (timestamp) | `POSIXct`, UTC |
+| any other ext | `msgpack_ext`, or a handler's result |
 
 An array simplifies to an atomic vector only when its elements agree:
 integers and floats combine to the wider; booleans stay logical, and
@@ -113,6 +129,35 @@ back as an array rather than a single value.
 
 A `str` holding U+0000 cannot be an R string and is
 `zumsgpack_unrepresentable`.
+
+The timestamp extension (type -1) has three layouts: `timestamp 32`
+(seconds), `timestamp 64` (34-bit seconds, 30-bit nanoseconds) and
+`timestamp 96` (64-bit signed seconds, 32-bit nanoseconds). A `POSIXct`
+is a double, so nanoseconds are kept only to double precision, about
+2^-22 s near 2026; a handler for `"-1"` can keep the fields exactly.
+
+## Extension handlers
+
+`ext_handlers` gives meaning to extension types zumsgpack does not
+convert, or replaces the timestamp conversion. Each handler is called
+with the ext's payload as a raw vector – an ext has no structure beyond
+its bytes – and its result takes the ext's place:
+
+    msgpack_decode(x, ext_handlers = list(
+      "5"  = function(data) rawToChar(data),
+      "-1" = function(data) data               # keep timestamps as bytes
+    ))
+
+A handler runs only once the whole input has been checked, so it never
+sees a payload from an object with a bad length or a duplicate key. Its
+result never joins an array's simplification: an array holding one is a
+list. A handler applies whatever `ext` says. An error in a handler
+becomes `zumsgpack_handler_error`, with the type as `type` and the
+original condition as `parent`. A handler that calls `msgpack_decode()`
+again, for MessagePack embedded in an ext, passes that call its own
+limits.
+[`as_msgpack()`](https://pedrobtz.github.io/zumsgpack/reference/as_msgpack.md)
+is the encoding half.
 
 ## See also
 
@@ -144,4 +189,12 @@ msgpack_decode_seq(as.raw(c(0x01, 0xa1, 0x61)))          # 1, then "a"
 #> [[2]]
 #> [1] "a"
 #> 
+
+# A timestamp, and the same bytes kept as an ext.
+ts <- as.raw(c(0xd6, 0xff, 0x5a, 0x4a, 0xf6, 0xa5))
+msgpack_decode(ts)
+#> [1] "2018-01-02 03:04:05 UTC"
+msgpack_decode(ts, ext = "keep")
+#> <msgpack_ext type -1, 4 bytes>
+#> [1] 5a 4a f6 a5
 ```

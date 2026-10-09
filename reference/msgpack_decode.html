@@ -55,22 +55,26 @@ allocate for data the input does not hold.</p>
 <span>  <span class="va">x</span>,</span>
 <span>  simplify <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"preserve"</span>, <span class="st">"none"</span><span class="op">)</span>,</span>
 <span>  map_keys <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"auto"</span>, <span class="st">"map"</span>, <span class="st">"string"</span><span class="op">)</span>,</span>
+<span>  ext <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"convert"</span>, <span class="st">"keep"</span><span class="op">)</span>,</span>
 <span>  big_integers <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"bigint"</span>, <span class="st">"double"</span>, <span class="st">"error"</span><span class="op">)</span>,</span>
 <span>  duplicate_keys <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  max_depth <span class="op">=</span> <span class="fl">256L</span>,</span>
 <span>  max_size <span class="op">=</span> <span class="fl">64</span> <span class="op">*</span> <span class="fl">1024</span><span class="op">^</span><span class="fl">2</span>,</span>
-<span>  max_items <span class="op">=</span> <span class="fl">1e+06</span></span>
+<span>  max_items <span class="op">=</span> <span class="fl">1e+06</span>,</span>
+<span>  ext_handlers <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu">msgpack_decode_seq</span><span class="op">(</span></span>
 <span>  <span class="va">x</span>,</span>
 <span>  simplify <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"preserve"</span>, <span class="st">"none"</span><span class="op">)</span>,</span>
 <span>  map_keys <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"auto"</span>, <span class="st">"map"</span>, <span class="st">"string"</span><span class="op">)</span>,</span>
+<span>  ext <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"convert"</span>, <span class="st">"keep"</span><span class="op">)</span>,</span>
 <span>  big_integers <span class="op">=</span> <span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="st">"bigint"</span>, <span class="st">"double"</span>, <span class="st">"error"</span><span class="op">)</span>,</span>
 <span>  duplicate_keys <span class="op">=</span> <span class="cn">FALSE</span>,</span>
 <span>  max_depth <span class="op">=</span> <span class="fl">256L</span>,</span>
 <span>  max_size <span class="op">=</span> <span class="fl">64</span> <span class="op">*</span> <span class="fl">1024</span><span class="op">^</span><span class="fl">2</span>,</span>
-<span>  max_items <span class="op">=</span> <span class="fl">1e+06</span></span>
+<span>  max_items <span class="op">=</span> <span class="fl">1e+06</span>,</span>
+<span>  ext_handlers <span class="op">=</span> <span class="cn">NULL</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -98,6 +102,12 @@ entry by its <code>str</code> key, or by a text rendering of any other key (<cod
 refuses a map whose keys collide once named.</p></dd>
 
 
+<dt id="arg-ext">ext<a class="anchor" aria-label="anchor" href="#arg-ext"></a></dt>
+<dd><p><code>"convert"</code> turns timestamps (ext -1) into <code>POSIXct</code> and
+keeps other exts as <code>msgpack_ext</code>; <code>"keep"</code> makes every ext a
+<code>msgpack_ext</code>.</p></dd>
+
+
 <dt id="arg-big-integers">big_integers<a class="anchor" aria-label="anchor" href="#arg-big-integers"></a></dt>
 <dd><p>What to do with an integer beyond 2^53, which a
 double cannot hold exactly: <code>"bigint"</code> returns a <code>msgpack_bigint</code>,
@@ -122,6 +132,12 @@ extension objects. At most <code>zumsgpack_info()$max_depth_cap</code>.</p></dd>
 <dd><p>Most objects allowed, counting every array, map, key,
 value and element, or <code>Inf</code>.</p></dd>
 
+
+<dt id="arg-ext-handlers">ext_handlers<a class="anchor" aria-label="anchor" href="#arg-ext-handlers"></a></dt>
+<dd><p><code>NULL</code>, or a list of functions of one argument, named
+by extension type from <code>"-128"</code> to <code>"127"</code>, such as
+<code>list("5" = function(data) ...)</code>. See "Extension handlers".</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -131,7 +147,7 @@ element per object.</p>
     <div class="section level2">
     <h2 id="messagepack-to-r">MessagePack to R<a class="anchor" aria-label="anchor" href="#messagepack-to-r"></a></h2>
 
-<table class="table table"><tr><td>MessagePack</td><td>R</td></tr><tr><td>every integer form</td><td><code>integer</code> if it fits, else <code>double</code> up to 2^53, else by <code>big_integers</code></td></tr><tr><td><code>float 32</code>, <code>float 64</code></td><td><code>double</code>, exactly</td></tr><tr><td><code>true</code>, <code>false</code></td><td><code>logical</code></td></tr><tr><td><code>nil</code></td><td><code>NULL</code>, or <code>NA</code> inside an atomic vector</td></tr><tr><td><code>bin 8/16/32</code></td><td><code>raw</code></td></tr><tr><td><code>str</code> (fixstr, <code>str 8/16/32</code>)</td><td><code>character</code>, UTF-8</td></tr><tr><td>array</td><td>atomic vector when the elements agree, else <code>list</code></td></tr><tr><td>map with non-empty, unique <code>str</code> keys</td><td>named <code>list</code></td></tr><tr><td>any other map</td><td><code>msgpack_map</code> (by <code>map_keys</code>)</td></tr><tr><td>ext</td><td><code>msgpack_ext</code></td></tr></table><p>An array simplifies to an atomic vector only when its elements agree:
+<table class="table table"><tr><td>MessagePack</td><td>R</td></tr><tr><td>every integer form</td><td><code>integer</code> if it fits, else <code>double</code> up to 2^53, else by <code>big_integers</code></td></tr><tr><td><code>float 32</code>, <code>float 64</code></td><td><code>double</code>, exactly</td></tr><tr><td><code>true</code>, <code>false</code></td><td><code>logical</code></td></tr><tr><td><code>nil</code></td><td><code>NULL</code>, or <code>NA</code> inside an atomic vector</td></tr><tr><td><code>bin 8/16/32</code></td><td><code>raw</code></td></tr><tr><td><code>str</code> (fixstr, <code>str 8/16/32</code>)</td><td><code>character</code>, UTF-8</td></tr><tr><td>array</td><td>atomic vector when the elements agree, else <code>list</code></td></tr><tr><td>map with non-empty, unique <code>str</code> keys</td><td>named <code>list</code></td></tr><tr><td>any other map</td><td><code>msgpack_map</code> (by <code>map_keys</code>)</td></tr><tr><td>ext -1 (timestamp)</td><td><code>POSIXct</code>, UTC</td></tr><tr><td>any other ext</td><td><code>msgpack_ext</code>, or a handler's result</td></tr></table><p>An array simplifies to an atomic vector only when its elements agree:
 integers and floats combine to the wider; booleans stay logical, and
 text stays text; wide integers and integer-valued numbers combine to
 <code>msgpack_bigint</code>. <code>nil</code> joins any of them as <code>NA</code>. Anything else – raw
@@ -141,6 +157,32 @@ vectors, nested arrays and maps, exts, booleans with numbers, a mixture
 encoder writes it back as an array rather than a single value.</p>
 <p>A <code>str</code> holding U+0000 cannot be an R string and is
 <code>zumsgpack_unrepresentable</code>.</p>
+<p>The timestamp extension (type -1) has three layouts: <code>timestamp 32</code>
+(seconds), <code>timestamp 64</code> (34-bit seconds, 30-bit nanoseconds) and
+<code>timestamp 96</code> (64-bit signed seconds, 32-bit nanoseconds). A <code>POSIXct</code>
+is a double, so nanoseconds are kept only to double precision, about
+2^-22 s near 2026; a handler for <code>"-1"</code> can keep the fields exactly.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="extension-handlers">Extension handlers<a class="anchor" aria-label="anchor" href="#extension-handlers"></a></h2>
+
+
+<p><code>ext_handlers</code> gives meaning to extension types zumsgpack does not
+convert, or replaces the timestamp conversion. Each handler is called
+with the ext's payload as a raw vector – an ext has no structure beyond
+its bytes – and its result takes the ext's place:</p>
+<p></p><div class="sourceCode"><pre><code><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">msgpack_decode</span>(x, <span class="at">ext_handlers =</span> <span class="fu">list</span>(</span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a>  <span class="st">"5"</span>  <span class="ot">=</span> <span class="cf">function</span>(data) <span class="fu">rawToChar</span>(data),</span>
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a>  <span class="st">"-1"</span> <span class="ot">=</span> <span class="cf">function</span>(data) data               <span class="co"># keep timestamps as bytes</span></span>
+<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a>))</span></code></pre><p></p></div>
+<p>A handler runs only once the whole input has been checked, so it never
+sees a payload from an object with a bad length or a duplicate key. Its
+result never joins an array's simplification: an array holding one is a
+list. A handler applies whatever <code>ext</code> says. An error in a handler
+becomes <code>zumsgpack_handler_error</code>, with the type as <code>type</code> and the
+original condition as <code>parent</code>. A handler that calls <code>msgpack_decode()</code>
+again, for MessagePack embedded in an ext, passes that call its own
+limits. <code><a href="as_msgpack.html">as_msgpack()</a></code> is the encoding half.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>
@@ -170,6 +212,14 @@ encoder writes it back as an array rather than a single value.</p>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [[2]]</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> [1] "a"</span>
 <span class="r-out co"><span class="r-pr">#&gt;</span> </span>
+<span class="r-in"><span></span></span>
+<span class="r-in"><span><span class="co"># A timestamp, and the same bytes kept as an ext.</span></span></span>
+<span class="r-in"><span><span class="va">ts</span> <span class="op">&lt;-</span> <span class="fu"><a href="https://rdrr.io/r/base/raw.html" class="external-link">as.raw</a></span><span class="op">(</span><span class="fu"><a href="https://rdrr.io/r/base/c.html" class="external-link">c</a></span><span class="op">(</span><span class="fl">0xd6</span>, <span class="fl">0xff</span>, <span class="fl">0x5a</span>, <span class="fl">0x4a</span>, <span class="fl">0xf6</span>, <span class="fl">0xa5</span><span class="op">)</span><span class="op">)</span></span></span>
+<span class="r-in"><span><span class="fu">msgpack_decode</span><span class="op">(</span><span class="va">ts</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] "2018-01-02 03:04:05 UTC"</span>
+<span class="r-in"><span><span class="fu">msgpack_decode</span><span class="op">(</span><span class="va">ts</span>, ext <span class="op">=</span> <span class="st">"keep"</span><span class="op">)</span></span></span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> &lt;msgpack_ext type -1, 4 bytes&gt;</span>
+<span class="r-out co"><span class="r-pr">#&gt;</span> [1] 5a 4a f6 a5</span>
 </code></pre></div>
     </div>
   </main><aside class="col-md-3"><nav id="toc" aria-label="Table of contents"><h2>On this page</h2>
