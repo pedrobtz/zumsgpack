@@ -13,6 +13,8 @@ OUT=${1:-fuzz/probe}
 CC=${CC:-cc}
 ZUFAST_INCLUDE=${ZUFAST_INCLUDE:-$(Rscript -e 'cat(system.file("include", package = "zufast"))')}
 [ -n "$ZUFAST_INCLUDE" ] || { echo "zufast's headers not found; set ZUFAST_INCLUDE" >&2; exit 2; }
-$CC -std=gnu17 -O1 -g ${STANDALONE_CFLAGS:-} -DZMP_STANDALONE -Isrc -I"$ZUFAST_INCLUDE" \
-  src/zmp_walk.c src/zmp_head.c src/zmp_status.c fuzz/arena.c fuzz/probe.c -o "$OUT" -lm
+# SRC_DIR builds from another copy of src/: tools/run-mutation-check's mutants.
+S=${SRC_DIR:-src}
+$CC -std=gnu17 -O1 -g ${STANDALONE_CFLAGS:-} -DZMP_STANDALONE -I"$S" -I"$ZUFAST_INCLUDE" \
+  "$S/zmp_walk.c" "$S/zmp_head.c" "$S/zmp_status.c" fuzz/arena.c fuzz/probe.c -o "$OUT" -lm
 echo "==> built $OUT"

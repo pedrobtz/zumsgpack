@@ -772,7 +772,8 @@ issue on `zucbor` (principle 8).
 
 ## Stage 7 — Hardening: fuzz, mutation, sanitizers, benchmarks · M
 
-**Status:** not started.
+**Status:** complete, apart from the cumulative fuzzing hours, which the
+nightly job accrues on the cached corpus (30 minutes a night).
 
 **Do**
 
@@ -816,6 +817,48 @@ issue on `zucbor` (principle 8).
 - Benchmarks meet §16 (within 1.5× of `zucbor`; faster than `RcppMsgPack`
   on arrays of numbers), or each gap is written into §16 with its
   measured reason.
+
+**What actually happened**
+
+- **The fuzz target asserts invariants, not just survival.** Beyond
+  zucbor's (relaxing an option never rejects more, a prefix consumes
+  every byte, a prefix of n bytes passes as one object), it holds that
+  one object is a sequence and a stream of one, that a stream stops on
+  an object boundary that passes as a sequence, and that every proper
+  prefix of an accepted object is truncation. Apple's clang has no
+  libFuzzer, so locally `tools/run-fuzz --replay` builds the target with
+  ASan and UBSan and a driver that mutates each seed: 1,008,513 inputs,
+  clean, with every invariant holding. The canary crashed on the first
+  valid seed, as it must.
+- **Every guard is load-bearing, and two say more than that.** Removing
+  `depth` crashes the probe: the container stack is sized from
+  `max_depth`, so the limit is what keeps it in bounds. Removing
+  `length-headers` lets UTF-8 validation run past the payload into the
+  rest of the buffer. Removing `container-count` only moves the
+  truncation from offset 0 to 5: here that guard is early refusal, not a
+  memory guard, since nothing is sized from a count until the check has
+  passed. The script refuses a mutant equal to its original and requires
+  every marker to have a case and every case a marker.
+- **The first benchmark measured the wrong build.** `R CMD INSTALL .`
+  reused the `-O0` objects `devtools::load_all()` had left in `src/`, so
+  zumsgpack looked 3.4× slower than RcppMsgPack on 10^6 doubles. A
+  profile showed `zuf_load_be32()` as a function of its own, which an
+  `-O2` build inlines. `tools/run-benchmarks` installs with `--preclean`.
+- **Two paths for arrays of numbers were kept anyway,** because the
+  clean build still showed where the time went: the walk skips a run of
+  fixed-size scalars by the head table, counted in blocks of 65,536
+  through the one guarded counter (so the limit's offset stays exact and
+  interrupts still fire), and the build writes an all-number array
+  straight into its vector without staging buffers, which cut decoding's
+  allocation for 10^6 doubles from 24 MB to 7.7 MB. A property test over
+  random arrays of every numeric head holds it to the lattice.
+- **The targets are met** (§16): within 1.09× of zucbor everywhere, and
+  0.69× of RcppMsgPack's time on 10^6 doubles. The two rows that are not
+  wins, a 1 KiB message (R-level argument checks) and large strings
+  (parity), carry their reasons in §16.
+- `tools/run-lint` is clean with clang locally and runs with gcc and
+  clang in CI; it was seen to fail on its planted warning. 
+  `tools/check-no-network` was seen to catch a planted `url()`.
 
 ---
 

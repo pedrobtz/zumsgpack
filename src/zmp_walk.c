@@ -96,15 +96,23 @@ static void *grow(void *old, size_t used, size_t *cap, size_t size)
     return p;
 }
 
-static int count_item(zmp_walker *w, size_t at)
+/* Counts k objects, the last of which starts at `at`: the one place the
+ * item limit is enforced, for single objects and scalar runs alike. */
+static int count_items(zmp_walker *w, uint64_t k, size_t at)
 {
-    w->items++;
+    uint64_t before = w->items;
+    w->items += k;
     if (w->items > w->opt->max_items)  /* GUARD: items */
         return fail_limit(w, ZMP_ERR_ITEM_LIMIT, "max_items",
                           (double) w->opt->max_items, at);
-    if (w->items % ZMP_INTERRUPT_EVERY == 0)
+    if (before / ZMP_INTERRUPT_EVERY != w->items / ZMP_INTERRUPT_EVERY)
         zmp_interrupt_check();
     return 0;
+}
+
+static int count_item(zmp_walker *w, size_t at)
+{
+    return count_items(w, 1, at);
 }
 
 /* ---- duplicate keys ------------------------------------------------------------ */
@@ -324,10 +332,57 @@ static int check_timestamp(zmp_walker *w, const uint8_t *p, uint32_t n, size_t a
     return 0;
 }
 
+/* Inside an array, a run of fixed-size scalars -- nil, the booleans, every
+ * integer and float form -- needs none of the bookkeeping of the general
+ * loop: no key to record, no payload, no container. They are skipped here
+ * by the head table alone, each still counted through count_item(), so the
+ * items guard and the interrupt check see every one. Anything else, and a
+ * head the input ends inside, is left to the general loop, which reports
+ * it. Arrays of numbers are the common bulk payload (roadmap Stage 7). */
+static int scalar_run(zmp_walker *w)
+{
+    zmp_frame *f = &w->frames[w->sp - 1];
+    const uint8_t *buf = w->buf;
+    size_t len = w->len, pos = w->pos;
+    for (;;) {
+        /* A block at a time, so the interrupt check still runs every
+         * ZMP_INTERRUPT_EVERY objects, and never more than the item budget
+         * plus one, so a limit fault names the object that crossed it. */
+        uint64_t budget = w->opt->max_items - w->items;
+        uint64_t want = f->remaining < ZMP_INTERRUPT_EVERY ? f->remaining : ZMP_INTERRUPT_EVERY;
+        if (want > budget)
+            want = budget + 1;
+        uint64_t n = 0;
+        size_t last = pos;
+        while (n < want && pos < len) {
+            const zmp_fmt *fm = &zmp_fmt_table[buf[pos]];
+            if (fm->kind > ZMP_K_F64 || len - pos < fm->hlen)
+                break;
+            last = pos;
+            pos += fm->hlen;
+            n++;
+        }
+        if (n && count_items(w, n, last))
+            return 1;
+        f->remaining -= n;
+        f->count += n;
+        if (n < want || !f->remaining)
+            break;
+    }
+    w->pos = pos;
+    return 0;
+}
+
 /* Walks one top-level object from w->pos. */
 static int walk_object(zmp_walker *w)
 {
     for (;;) {
+        if (w->sp && !w->frames[w->sp - 1].is_map) {
+            if (scalar_run(w) || close_finished(w))
+                return 1;
+            if (w->sp == 0)
+                return 0;
+        }
         size_t start = w->pos;
         if (start >= w->len)
             return fail(w, ZMP_ERR_TRUNCATED, "the input ends inside an object", start);

@@ -550,6 +550,38 @@ are the same and MessagePack's heads are simpler; faster than
 `RcppMsgPack` on decoding arrays of numbers, through the staged
 simplification `zucbor` Stage 8 measured.
 
+Measured at roadmap Stage 7 (`tools/run-benchmarks`, local macOS arm64,
+R 4.6.1, every package installed with `--preclean` at `-O2`; medians,
+milliseconds; ratios below 1 are faster):
+
+| Fixture | size | decode | vs zucbor | vs RcppMsgPack | encode | vs zucbor | check share |
+|---|---|---|---|---|---|---|---|
+| 1 KiB message | 1 kB | 0.014 | 1.08 | 4.45 | 0.006 | 0.83 | 0.52 |
+| 100 KiB telemetry | 48 kB | 0.53 | 0.63 | 0.69 | 0.46 | 1.00 | 0.35 |
+| 10 MiB document | 4.8 MB | 50.8 | 0.61 | 0.66 | 57.7 | 1.09 | 0.35 |
+| many tiny items | 0.5 MB | 2.5 | 0.21 | 0.68 | 12.6 | 0.81 | 0.71 |
+| large strings | 9.8 MB | 11.0 | 0.82 | 1.04 | 3.5 | 0.59 | 0.07 |
+| 10^6 doubles | 8.8 MB | 6.8 | 0.26 | 0.69 | 14.4 | 0.67 | 0.53 |
+
+Both targets are met: decoding and encoding are within 1.5× of `zucbor`
+everywhere (at most 1.09×), and decoding an array of numbers is 0.69× of
+`RcppMsgPack`'s time, with a third of its allocation, while checking the
+whole input first. Two rows are not wins and say why:
+
+- **1 KiB message: 4.45× `RcppMsgPack`,** about 11 µs of R-level
+  argument checking per call, the same fixed cost `zucbor` has (its
+  §17). `RcppMsgPack` checks nothing, so its call is 3 µs.
+- **Large strings: parity.** Both copy 10 MB of text into CHARSXPs;
+  zumsgpack also validates the UTF-8 first.
+
+Arrays of numbers take two paths built for them (roadmap Stage 7): the
+check phase skips a run of fixed-size scalars in an array by the head
+table alone, counting the run through the one guarded counter; and the
+build writes an array whose every element is a number or `nil` straight
+into its vector, deciding integer or double from the heads in one scan,
+without the staging buffers that are otherwise twice the result's size.
+A property test holds that path to the general lattice.
+
 ## 17. Decisions
 
 | # | Question | Decision |

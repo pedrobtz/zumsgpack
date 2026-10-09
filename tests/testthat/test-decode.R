@@ -290,3 +290,38 @@ test_that("failing and succeeding decodes interleave fifty times", {
     expect_identical(msgpack_decode(ok), want)
   }
 })
+
+test_that("arrays of numbers decode as the lattice says, every head and nil mixed", {
+  # Arrays whose every element is a number or nil take a direct path that
+  # skips staging (roadmap Stage 7); it must agree with the general lattice.
+  set.seed(77)
+  heads <- list(
+    function() as.raw(sample(0:127, 1)),                                    # positive fixint
+    function() as.raw(sample(0xe0:0xff, 1)),                                # negative fixint
+    function() as.raw(c(0xcc, sample(0:255, 1))),
+    function() as.raw(c(0xcd, sample(0:255, 2, TRUE))),
+    function() as.raw(c(0xce, sample(0:255, 4, TRUE))),
+    function() as.raw(c(0xd0, sample(0:255, 1))),
+    function() as.raw(c(0xd1, sample(0:255, 2, TRUE))),
+    function() as.raw(c(0xd2, sample(0:255, 4, TRUE))),
+    function() hex_raw("d2 80 00 00 00"),                                   # -2^31
+    function() hex_raw("ca 3f c0 00 00"),
+    function() as.raw(c(0xcb, writeBin(stats::rnorm(1), raw(), endian = "big"))),
+    function() as.raw(0xc0))
+  lattice <- function(items) {
+    nums <- Filter(Negate(is.null), items)
+    if (!length(nums)) return(rep(NA, length(items)))
+    real <- any(vapply(nums, is.double, NA))
+    out <- vapply(items, function(v) if (is.null(v)) NA_real_ else as.double(v), 0)
+    if (real) out else as.integer(out)
+  }
+  for (trial in 1:300) {
+    n <- sample(c(1:20, 300), 1)
+    pick <- sample(length(heads), sample(1:4, 1))
+    els <- lapply(seq_len(n), function(i) heads[[sample(pick, 1)]]())
+    x <- c(as.raw(0xdc), as.raw(c(n %/% 256, n %% 256)), unlist(els))
+    want <- lattice(msgpack_decode(x, simplify = "none"))
+    if (n == 1L) want <- I(want)
+    expect_identical(msgpack_decode(x), want, info = raw_hex(x))
+  }
+})

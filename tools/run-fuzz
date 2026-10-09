@@ -1,0 +1,58 @@
+#!/bin/sh
+# libFuzzer over the R-free check phase (roadmap Stage 7).
+#
+#   tools/run-fuzz [seconds]       fuzz fuzz_check for that long (default 60)
+#   tools/run-fuzz --replay [n]    no libFuzzer: ASan + UBSan replay of the
+#                                  seeds and n random mutations of each
+#
+# First the canary, fuzz/fuzz_canary.c, must crash on the seeds: a harness
+# that never reaches the check phase cannot pass for a clean run. Then the
+# real target fuzzes from the seeds and the corpus in fuzz/corpus, which is
+# kept between runs so fuzzing time accumulates. The fuzzer's own exit
+# status is what counts, never a pipe's (zuxml #35). Findings land in
+# fuzz/artifacts. FUZZ_CC (default clang) must have libFuzzer.
+set -eu
+CC=${FUZZ_CC:-clang}
+ZUFAST_INCLUDE=${ZUFAST_INCLUDE:-$(Rscript -e 'cat(system.file("include", package = "zufast"))')}
+SAN="-fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer -g -O1"
+SRC="src/zmp_walk.c src/zmp_head.c src/zmp_status.c fuzz/arena.c"
+INC="-DZMP_STANDALONE -Isrc -I$ZUFAST_INCLUDE"
+WORK=$(mktemp -d)
+trap 'rm -rf "$WORK"' EXIT
+mkdir -p fuzz/corpus fuzz/artifacts
+Rscript tools/fuzz-seeds.R "$WORK/seeds" >/dev/null
+
+if [ "${1:-}" = "--replay" ]; then
+  N=${2:-1000}
+  $CC $SAN $INC $SRC fuzz/fuzz_canary.c fuzz/standalone_main.c -o "$WORK/canary" -lm
+  if "$WORK/canary" "$WORK"/seeds/* >/dev/null 2>&1; then
+    echo "FAIL: the canary did not crash on the seeds" >&2
+    exit 2
+  fi
+  echo "==> the canary crashed, as it must"
+  $CC $SAN $INC $SRC fuzz/fuzz_check.c fuzz/standalone_main.c -o "$WORK/check" -lm
+  ZMP_MUTATE=$N "$WORK/check" "$WORK"/seeds/*
+  echo "==> replay clean: every seed and $N mutations of each"
+  exit 0
+fi
+
+SECONDS_TO_FUZZ=${1:-60}
+$CC $SAN -fsanitize=fuzzer $INC $SRC fuzz/fuzz_canary.c -o "$WORK/canary" -lm
+status=0
+"$WORK/canary" -runs=100000 -artifact_prefix="$WORK/" "$WORK/seeds" >"$WORK/canary.log" 2>&1 || status=$?
+if [ "$status" = 0 ]; then
+  tail -20 "$WORK/canary.log" >&2
+  echo "FAIL: the canary did not crash" >&2
+  exit 2
+fi
+echo "==> the canary crashed (exit $status), as it must"
+
+$CC $SAN -fsanitize=fuzzer $INC $SRC fuzz/fuzz_check.c -o "$WORK/check" -lm
+status=0
+"$WORK/check" -max_total_time="$SECONDS_TO_FUZZ" -timeout=10 -rss_limit_mb=2048 \
+  -artifact_prefix=fuzz/artifacts/ fuzz/corpus "$WORK/seeds" || status=$?
+if [ "$status" != 0 ]; then
+  echo "FAIL: fuzz_check found a crash or a broken invariant (exit $status); see fuzz/artifacts" >&2
+  exit 1
+fi
+echo "==> fuzz_check clean for ${SECONDS_TO_FUZZ}s; corpus: $(ls fuzz/corpus | wc -l | tr -d ' ') inputs"
