@@ -1,0 +1,114 @@
+#!/usr/bin/env python3
+# Every security guard in the check phase is load-bearing (roadmap Stage 7):
+# each `/* GUARD: name */` condition is disabled in turn in a throwaway copy
+# of src/ -- `if (COND)` becomes `if (0 && (COND))` -- the R-free probe is
+# rebuilt with ASan and UBSan, and the guard's hostile input must then get a
+# different answer: another status or offset, or a crash. A mutant that
+# equals the original is refused rather than passed, which is how zucbor's
+# first mutation script once passed vacuously. Every marker in src/ must
+# have a case here, and every case a marker. Run from the package root;
+# needs a C compiler, Rscript (for zufast's include path) and Python 3.
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+
+# guard -> (hostile input in hex, probe options). The input is refused by
+# the guard in the original.
+CASES = {
+    "items": ("93 01 02 03", ["--items", "3"]),
+    "duplicate-keys": ("82 01 c0 01 c0", []),
+    "timestamp-length": ("c7 05 ff 01 02 03 04 05", []),
+    "timestamp-nanos": ("d7 ff ee 6b 28 00 00 00 00 00", []),
+    "reserved": ("c1", []),
+    "length-headers": ("db ff ff ff ff 61", []),
+    "utf8": ("a2 c0 80", []),
+    "depth-ext": ("91 d4 05 00", ["--depth", "1"]),
+    "container-count": ("dd ff ff ff ff", []),
+    "depth": ("91" * 40 + "c0", ["--depth", "4"]),
+    "trailing-bytes": ("c0 c0", []),
+}
+
+SAN = "-fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer"
+
+
+def disable(line, name):
+    """`if (COND)` on a guard's line -> `if (0 && (COND))`."""
+    i = line.find("if (")
+    if i < 0:
+        sys.exit("run-mutation-check: no `if (` on the line of guard %s" % name)
+    depth, j = 0, i + 3
+    while True:
+        c = line[j]
+        depth += c == "("
+        depth -= c == ")"
+        if depth == 0:
+            break
+        j += 1
+    return line[:i] + "if (0 && " + line[i + 3:j + 1] + ")" + line[j + 1:]
+
+
+def build(src_dir, out):
+    env = dict(os.environ, SRC_DIR=src_dir, STANDALONE_CFLAGS=SAN)
+    subprocess.run(["tools/build-standalone", out], check=True, env=env,
+                   stdout=subprocess.DEVNULL)
+
+
+def answer(probe, path, opts):
+    r = subprocess.run([probe] + opts + [path], capture_output=True, text=True)
+    if r.returncode != 0:
+        return "crash (exit %d)" % r.returncode
+    return r.stdout.split(" ", 1)[1].strip()
+
+
+def main():
+    markers = {}
+    for f in sorted(os.listdir("src")):
+        if not f.endswith(".c"):
+            continue
+        for k, line in enumerate(open(os.path.join("src", f), encoding="utf-8")):
+            m = re.search(r"/\* GUARD: ([a-z0-9-]+) \*/", line)
+            if m:
+                markers[m.group(1)] = (f, k)
+    missing = sorted(set(markers) ^ set(CASES))
+    if missing:
+        sys.exit("run-mutation-check: guards without a case, or cases without a guard: %s"
+                 % ", ".join(missing))
+
+    work = tempfile.mkdtemp()
+    try:
+        build("src", os.path.join(work, "probe"))
+        failed = 0
+        for name, (hexs, opts) in sorted(CASES.items()):
+            path = os.path.join(work, name + ".mp")
+            with open(path, "wb") as fh:
+                fh.write(bytes.fromhex(hexs.replace(" ", "")))
+            before = answer(os.path.join(work, "probe"), path, opts)
+            if before.startswith("ok") or before.startswith("crash"):
+                sys.exit("run-mutation-check: %s's hostile input is not refused by the original: %s"
+                         % (name, before))
+            mutant = os.path.join(work, "src-" + name)
+            shutil.copytree("src", mutant)
+            f, k = markers[name]
+            lines = open(os.path.join(mutant, f), encoding="utf-8").read().split("\n")
+            new = disable(lines[k], name)
+            if new == lines[k]:
+                sys.exit("run-mutation-check: the mutant of %s equals the original" % name)
+            lines[k] = new
+            open(os.path.join(mutant, f), "w", encoding="utf-8").write("\n".join(lines))
+            build(mutant, os.path.join(work, "probe-" + name))
+            after = answer(os.path.join(work, "probe-" + name), path, opts)
+            verdict = "load-bearing" if after != before else "NOT load-bearing"
+            failed += after == before
+            print("%-17s %-28s -> %-28s %s" % (name, before, after, verdict))
+        if failed:
+            sys.exit("FAIL: %d guard(s) changed nothing when removed" % failed)
+        print("==> all %d guards are load-bearing" % len(CASES))
+    finally:
+        shutil.rmtree(work)
+
+
+if __name__ == "__main__":
+    main()

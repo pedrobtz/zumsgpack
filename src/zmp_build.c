@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include <zufast/bits.h>
 #include <zufast/hex.h>
 #include <zufast/number.h>
 
@@ -401,6 +402,107 @@ static void stage_element(zmp_builder *b, zmp_stage *st, R_xlen_t i)
     st->built[i] = 1;
 }
 
+/* An array of numbers, the common bulk payload, straight into its vector.
+ * When every element is a float, an integer that a double holds exactly,
+ * or nil, the lattice's answer is known from the heads alone (design 6.2):
+ * integer if every number is an integer within R's range, else double,
+ * nil as NA. One scan decides that, a second writes the result, and none
+ * of the staging buffers -- about twice the result's size -- is allocated.
+ * Returns R_NilValue, having moved nothing, for any other array; an array
+ * of nothing but nil is left to the general path, which makes it logical. */
+static SEXP number_array(zmp_builder *b, R_xlen_t n)
+{
+    const uint8_t *buf = b->buf;
+    size_t pos = b->pos;
+    int real = 0, numbers = 0;
+    for (R_xlen_t i = 0; i < n; i++) {
+        uint8_t c = buf[pos];
+        if (c <= 0x7f || c >= 0xe0) {
+            pos += 1;
+        } else {
+            switch (c) {
+            case 0xc0: break;                                   /* nil */
+            case 0xcc: case 0xd0: pos += 1; break;
+            case 0xcd: case 0xd1: pos += 2; break;
+            case 0xd2:
+                if (zuf_load_be32(buf + pos + 1) == 0x80000000u)
+                    real = 1;                                   /* -2^31 is NA_integer_ */
+                pos += 4;
+                break;
+            case 0xce:
+                if (zuf_load_be32(buf + pos + 1) > (uint32_t) INT_MAX)
+                    real = 1;
+                pos += 4;
+                break;
+            case 0xca: real = 1; pos += 4; break;
+            case 0xcb: real = 1; pos += 8; break;
+            default:
+                return R_NilValue;      /* 64-bit integers, and everything else */
+            }
+            pos += 1;
+            numbers += c != 0xc0;
+            continue;
+        }
+        numbers = 1;
+    }
+    if (!numbers)
+        return R_NilValue;
+
+    SEXP out = PROTECT(Rf_allocVector(real ? REALSXP : INTSXP, n));
+    double *d = real ? REAL(out) : NULL;
+    int *v = real ? NULL : INTEGER(out);
+    pos = b->pos;
+    for (R_xlen_t i = 0; i < n; i++) {
+        uint8_t c = buf[pos];
+        double x;
+        int nil = 0;
+        if (c <= 0x7f || c >= 0xe0) {
+            x = (double) (int8_t) c;
+            pos += 1;
+        } else {
+            const uint8_t *q = buf + pos + 1;
+            switch (c) {
+            case 0xc0: nil = 1; x = 0; pos += 1; break;
+            case 0xcc: x = q[0]; pos += 2; break;
+            case 0xd0: x = (int8_t) q[0]; pos += 2; break;
+            case 0xcd: x = zuf_load_be16(q); pos += 3; break;
+            case 0xd1: x = (int16_t) zuf_load_be16(q); pos += 3; break;
+            case 0xce: x = zuf_load_be32(q); pos += 5; break;
+            case 0xd2: {
+                uint32_t u = zuf_load_be32(q);
+                x = u > (uint32_t) INT32_MAX ? -(double) (~u) - 1 : (double) u;
+                pos += 5;
+                break;
+            }
+            case 0xca: {
+                uint32_t u = zuf_load_be32(q);
+                float f;
+                memcpy(&f, &u, 4);
+                x = (double) f;
+                pos += 5;
+                break;
+            }
+            default: {                                          /* 0xcb */
+                uint64_t u = zuf_load_be64(q);
+                memcpy(&x, &u, 8);
+                pos += 9;
+                break;
+            }
+            }
+        }
+        if (real)
+            d[i] = nil ? NA_REAL : x;
+        else
+            v[i] = nil ? NA_INTEGER : (int) x;
+        if (((uint64_t) i & (ZMP_INTERRUPT_EVERY - 1)) == ZMP_INTERRUPT_EVERY - 1)
+            R_CheckUserInterrupt();
+    }
+    b->items += (uint64_t) n;
+    b->pos = pos;
+    UNPROTECT(1);
+    return out;
+}
+
 static SEXP build_data_frame(zmp_builder *b, R_xlen_t n, size_t at, int *kind);
 
 static SEXP build_array(zmp_builder *b, const zmp_head *h, size_t at, int *kind)
@@ -411,6 +513,13 @@ static SEXP build_array(zmp_builder *b, const zmp_head *h, size_t at, int *kind)
         SEXP df = build_data_frame(b, n, at, kind);
         if (df != R_NilValue)
             return df;
+    }
+    if (b->simplify == ZMP_SIMPLIFY_PRESERVE && n > 0) {
+        SEXP v = number_array(b, n);
+        if (v != R_NilValue) {
+            *kind = ZMP_KIND_OTHER;
+            return as_is(v);
+        }
     }
     SEXP holder = PROTECT(Rf_allocVector(VECSXP, 2));
     zmp_stage st;

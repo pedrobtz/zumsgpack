@@ -1,0 +1,17 @@
+#!/bin/sh
+# No test opens a network connection (roadmap Stage 7): the suite runs on
+# CRAN machines and in sandboxes, and the fixtures exist so it never needs
+# to. tools/update-fixtures and tools/run-conformance are where the network
+# lives. Fails on any call that could reach it.
+set -eu
+PATTERN='url\(|download\.file|curl::|httr|socketConnection|make\.socket|readLines\(["'"'"']https?:|read\.(csv|table|delim)\(["'"'"']https?:'
+if grep -nE "$PATTERN" tests/testthat/*.R tests/*.R; then
+  echo "FAIL: a test reaches for the network" >&2
+  exit 1
+fi
+# The canary: the pattern must catch a planted call.
+if ! printf 'x <- url("https://example.com")\n' | grep -qE "$PATTERN"; then
+  echo "FAIL: the network pattern missed a planted url() call" >&2
+  exit 2
+fi
+echo "==> no test opens a network connection"
