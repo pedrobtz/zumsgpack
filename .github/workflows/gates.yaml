@@ -1,0 +1,38 @@
+# Gates over the built package and its C sources, each seen to fail on a
+# planted defect before it was trusted (roadmap, principle 6).
+#
+#   symbols   the shared object exports R_init_zumsgpack only, and references
+#             no console-output or process-exit symbol (design section 14)
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+name: gates
+
+permissions: read-all
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  # Checked on a plain R CMD INSTALL build, which compiles with R's -DNDEBUG
+  # as CRAN does.
+  symbols:
+    runs-on: ubuntu-latest
+    name: symbols
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+      # zufast and zubin are LinkingTo-only and not yet on CRAN: Remotes.
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          dependencies: '"hard"'
+      - name: Install and inspect the shared object
+        run: |
+          mkdir -p "$RUNNER_TEMP/lib"
+          R CMD INSTALL --no-test-load -l "$RUNNER_TEMP/lib" .
+          tools/check-symbols "$RUNNER_TEMP/lib/zumsgpack/libs/zumsgpack.so"
