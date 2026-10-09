@@ -35,6 +35,8 @@
     <div class="section level2">
 <h2 class="pkg-version" data-toc-text="0.0.0.9000" id="zumsgpack-0009000">zumsgpack 0.0.0.9000<a class="anchor" aria-label="anchor" href="#zumsgpack-0009000"></a></h2>
 <ul><li>Package identity: <code><a href="../reference/zumsgpack_info.html">zumsgpack_info()</a></code>, and links to zufast and zubin through <code>LinkingTo</code> (roadmap Stage 0).</li>
+<li>
+<code><a href="../reference/msgpack_validate.html">msgpack_validate()</a></code> checks MessagePack without building any R value: every head, length and count against the bytes there are, UTF-8 in every <code>str</code>, the timestamp extension’s three layouts, duplicate map keys by value, and the <code>max_depth</code>, <code>max_size</code> and <code>max_items</code> limits. Faults are classed conditions inheriting <code>zumsgpack_error</code>, with the byte offset (roadmap Stage 1).</li>
 </ul></div>
   </main></div>
 
