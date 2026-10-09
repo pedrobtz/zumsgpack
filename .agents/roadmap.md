@@ -612,7 +612,7 @@ chunks, the odd-map guard, tag-content rules, half floats, simple values,
 
 ## Stage 5 — Sequences, prefix, stream mode, `msgpack_read_seq(each =)` · M
 
-**Status:** not started.
+**Status:** complete.
 
 MessagePack streams are unframed objects back to back (§10): Fluentd
 forward, neovim RPC, `msgpack.Unpacker`. This stage makes them readable
@@ -652,6 +652,34 @@ issue on `zucbor` (principle 8).
 - 10^6 objects from a connection are read with `each =` in memory bounded
   by the largest object; an interrupt during the read unwinds; a
   malformed object stops the read with its offset in the stream.
+
+**What actually happened**
+
+- **Most of the stage was already built.** The walk got stream mode at
+  Stage 1 and the builder needed one more case, so the stage is mostly
+  R: `zmp_read_stream()` keeps the unconsumed tail, appends each block,
+  runs check and build in stream mode over it, passes every complete
+  object to `each`, and drops what was consumed.
+- **Reads grow with the tail, so one large object stays linear.** A block
+  is at least as long as the tail already held. Without that, a 64 MiB
+  object arriving in 64 KiB blocks would be re-checked a thousand times,
+  about 32 GiB of scanning; with it, the reads double and the work is a
+  small multiple of the object. A pending tail longer than `max_size` is
+  `zumsgpack_size_limit` at its offset, which is what stops a head
+  claiming 4 GiB: in stream mode that claim is "read more", not a fault,
+  so the size limit is the guard (tested).
+- **Truncation is one status, as §4 said,** so the stream rule needed no
+  new distinction in the walk: the stream invariants hold over every
+  suite encoding fed in blocks of 1, 2, 3 and 7 bytes, and every proper
+  prefix of an object at the end of a stream is a parse error at that
+  object's offset.
+- **zucbor has not built this yet** (its Stage 15 is not started), so the
+  decisions are this package's: offsets are stream positions, an error in
+  `each` propagates unchanged and the objects before it have been passed
+  on, and the count is returned invisibly. They go to zucbor as an issue
+  when its stage starts (principle 8).
+- A million small maps stream through `each` in about a second, holding
+  one block of values at a time.
 
 ---
 

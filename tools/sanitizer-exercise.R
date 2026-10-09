@@ -68,5 +68,16 @@ for (i in 1:200) {
   tryCatch(msgpack_encode(msgpack_map(list(structure(1, class = "zmp_ex_bad")), list(1))),
            error = function(e) NULL)
 }
-cat(sprintf("==> %d checks, %d decodes and %d encodes over %d seeds; handlers and timestamps\n",
+
+# Stage 5: every seed as a prefix, and the seeds back to back as a stream
+# in blocks of 1, 3 and 7 bytes, faults included.
+for (x in seeds) tryCatch(msgpack_decode_prefix(c(x, as.raw(0xc1))), zumsgpack_error = function(e) NULL)
+stream <- unlist(seeds[seq(1, length(seeds), by = 3)])
+for (chunk in c(1L, 3L, 7L)) {
+  con <- rawConnection(stream)
+  tryCatch(zumsgpack:::zmp_read_stream(con, function(v) NULL, 64 * 1024^2, list(), NULL, chunk),
+           zumsgpack_error = function(e) NULL)
+  close(con)
+}
+cat(sprintf("==> %d checks, %d decodes and %d encodes over %d seeds; handlers, timestamps, streams\n",
             n, decoded, encoded, length(seeds)))
