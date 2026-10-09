@@ -8,4 +8,9 @@ PKG_CFLAGS = $(C_VISIBILITY)
 
 OBJECTS = \
 	init.o \
-	zmp_info.o
+	zmp_cond.o \
+	zmp_head.o \
+	zmp_info.o \
+	zmp_status.o \
+	zmp_validate.o \
+	zmp_walk.o

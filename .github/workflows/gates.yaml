@@ -1,8 +1,11 @@
 # Gates over the built package and its C sources, each seen to fail on a
 # planted defect before it was trusted (roadmap, principle 6).
 #
-#   symbols   the shared object exports R_init_zumsgpack only, and references
-#             no console-output or process-exit symbol (design section 14)
+#   symbols     the shared object exports R_init_zumsgpack only, and
+#               references no console-output or process-exit symbol (design
+#               section 14)
+#   standalone  the check phase builds with no R headers and is clean under
+#               ASan and UBSan over every seed in every mode (roadmap Stage 1)
 on:
   push:
     branches: [main, master]
@@ -36,3 +39,23 @@ jobs:
           mkdir -p "$RUNNER_TEMP/lib"
           R CMD INSTALL --no-test-load -l "$RUNNER_TEMP/lib" .
           tools/check-symbols "$RUNNER_TEMP/lib/zumsgpack/libs/zumsgpack.so"
+
+  standalone:
+    runs-on: ubuntu-latest
+    name: standalone check phase
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          dependencies: '"hard"'
+      - name: Install clang
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q clang
+      - name: Build without R and run the seeds sanitized
+        env:
+          CC: clang
+        run: tools/run-standalone

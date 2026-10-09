@@ -179,7 +179,7 @@ nothing in it is shaped around a particular sibling.
 
 ## Stage 1 — The head table and the check phase · M
 
-**Status:** not started.
+**Status:** complete.
 
 The core. Everything after it relies on what this stage guarantees, and
 the stage's output is a user-facing function, `msgpack_validate()`.
@@ -283,6 +283,43 @@ chunks, the odd-map guard, tag-content rules, half floats, simple values,
   test asserts every status enumerator maps to a class.
 - The standalone build compiles with no R headers on the include path.
 - ASan, UBSan (`-UNDEBUG`) and `rchk` clean.
+
+**What actually happened**
+
+- **The suite already ships as JSON.** `kawanet/msgpack-test-suite` has
+  `dist/msgpack-test-suite.json` beside its YAML, so §18 Q4 closed with no
+  conversion of our own. `tools/update-fixtures` checks the download
+  against a pinned SHA-256 and writes one TSV row per encoding (85 cases,
+  233 encodings), the value as R source text, so the tests need no JSON
+  parser.
+- **The head table is built by the compiler.** A conditional expression
+  over struct values is not a constant expression in C, and repeating a
+  row through nested macros splits it at its commas. Each repeat macro
+  takes a row macro's *name* and calls it, so the 128 positive fixints,
+  the fix ranges and the 32 negative fixints are one line each, and the
+  32 formats from `0xc0` to `0xdf` a row each. `test-head.R` compares all
+  256 entries with a table written in the test from the spec.
+- **The standalone gate arrived with the walk.** `fuzz/probe` (built by
+  `tools/build-standalone` with no R include path) prints a status per
+  file; `tools/run-standalone` runs it under ASan and UBSan over 1,922
+  seeds (every suite encoding, each of its proper prefixes, and the
+  hostile list) in all five modes, in the `gates` workflow. Clean.
+- **Stream mode exists already.** The check modes are one enumerator, as
+  planned, and the stream rule (stop before an object the input ends
+  inside, with `max_items` per object) cost a dozen lines, so the walk has
+  it now and Stage 5 only exposes it.
+- **A count is refused at its container.** The count guard runs before the
+  first element, so `93 01 02` (three elements promised, two there) is
+  truncation at offset 0, not at offset 3. Every proper prefix is still
+  `ZMP_ERR_TRUNCATED`; only the offset says which guard saw it.
+- **Container keys compare by bytes,** as zucbor's do: `[1]` and
+  `[uint 8 1]` are two keys. Scalar keys compare by value, including an
+  `int 8` holding 5 against a positive fixint 5, and a `float 32` against
+  the `float 64` it widens to. `-0.0` and `0.0` are two keys (by bits, as
+  zucbor). `?msgpack_validate` says all of this.
+- **An ext is a level.** `max_depth = 1` accepts a top-level ext and
+  refuses one inside an array, so the encoder must charge the same at
+  Stage 3.
 
 ---
 

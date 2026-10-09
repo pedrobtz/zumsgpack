@@ -1,0 +1,74 @@
+# The package under UBSan, ASan, valgrind, LTO, gctorture and a blocking
+# rchk (roadmap Stage 1: these arrive with the check phase, not at Stage 7).
+# Quick on each push to a pull request, full after merge; the full-ci label
+# runs the full set on a pull request.
+on:
+  push:
+    branches: [main, master]
+    paths-ignore:
+      - '**.md'
+      - 'vignettes/**'
+      - '_pkgdown.yml'
+      - '.agents/**'
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+    paths-ignore:
+      - '**.md'
+      - 'vignettes/**'
+      - '_pkgdown.yml'
+      - '.agents/**'
+  schedule:
+    # Weekly, so a latent problem surfaces without waiting for a push.
+    - cron: "0 4 * * 3"
+  workflow_dispatch:
+
+name: native-checks
+
+permissions: read-all
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  # UBSan over the whole suite on a runner, plus the ASan containers running
+  # tools/sanitizer-exercise.R (base R only: the images carry no testthat).
+  # -UNDEBUG keeps every assert() live.
+  sanitizers:
+    uses: pedrobtz/r-actions/.github/workflows/sanitizers.yml@v1
+    with:
+      asan: true
+      asan-dependencies: false
+      asan-run: Rscript tools/sanitizer-exercise.R
+      extra-ubsan-checks: -UNDEBUG
+      profile: ${{ github.event_name == 'pull_request' && !contains(github.event.pull_request.labels.*.name, 'full-ci') && 'quick' || 'full' }}
+
+  valgrind:
+    uses: pedrobtz/r-actions/.github/workflows/valgrind.yml@v1
+
+  lto:
+    uses: pedrobtz/r-actions/.github/workflows/lto.yml@v1
+
+  # The quick step on each pull-request push, step 100 after merge.
+  # ZUMSGPACK_SKIP_HEAVY skips the tests that allocate millions of objects:
+  # they check limits and an interrupt path, not PROTECT discipline.
+  gctorture:
+    uses: pedrobtz/r-actions/.github/workflows/gctorture.yml@v1
+    with:
+      step: 100
+      profile: ${{ github.event_name == 'pull_request' && 'quick' || 'full' }}
+      env: |
+        ZUMSGPACK_SKIP_HEAVY=true
+
+  # Blocking from the first run: the C code is new, so any finding is ours.
+  # zufast and zubin are LinkingTo-only and on neither CRAN nor
+  # Bioconductor, which is all the rchk image installs from: github-packages
+  # installs them first, zufast before zubin, which needs it. Drop the input
+  # once both are on CRAN (roadmap Stage 8).
+  rchk:
+    uses: pedrobtz/r-actions/.github/workflows/rchk.yml@v1
+    with:
+      fail-on-findings: true
+      github-packages: |
+        pedrobtz/zufast
+        pedrobtz/zubin
