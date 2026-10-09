@@ -504,7 +504,7 @@ static int unboxed(const zmp_encoder *e, SEXP x)
 /* depth is the level of the container x would be; a scalar is no level. */
 void zmp_encode_value(zmp_encoder *e, SEXP x, int depth)
 {
-    if (zmp_convert_hook(e, &x, depth))
+    if (zmp_convert_hook(e, x, depth))
         return;
     zmp_encode_converted(e, x, depth);
 }

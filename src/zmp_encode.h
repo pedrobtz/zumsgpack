@@ -34,7 +34,7 @@ void zmp_encode_element(zmp_encoder *e, SEXP x, R_xlen_t i, int depth);
 
 /* zmp_ext.c (Stage 4) and the data-frame encoder (Stage 6). */
 void zmp_put_time(zmp_encoder *e, SEXP x, double v, int depth);
-int zmp_convert_hook(zmp_encoder *e, SEXP *x, int depth);
+int zmp_convert_hook(zmp_encoder *e, SEXP x, int depth);
 void zmp_encode_data_frame(zmp_encoder *e, SEXP x, int depth);
 
 #endif

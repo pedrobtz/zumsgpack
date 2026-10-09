@@ -601,6 +601,12 @@ chunks, the odd-map guard, tag-content rules, half floats, simple values,
 - **The second fixture is 232 bytes**: every layout and boundary, pre-1970
   instants, Dates, an `I()`-wrapped `POSIXct`, a class with a method, and
   a raw ext −1. Stage 3's fixture did not change.
+- **rchk could not see through `&x`.** The first version of the
+  `as_msgpack()` hook took the value's address, and rchk ignores any
+  variable whose address is taken, so it left `zmp_encode_value()`
+  unanalysed and the blocking job failed on an incomplete result rather
+  than a finding. The hook takes the value and returns whether it wrote
+  it.
 
 ---
 

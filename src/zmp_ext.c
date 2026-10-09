@@ -199,17 +199,18 @@ static SEXP convert(zmp_encoder *e, SEXP x)
 /* An object of a class this encoder does not know goes through
  * as_msgpack() once (design section 7.1, zucbor section 7.5): the method's
  * result is not converted again, though its elements are, so no chain of
- * methods can loop. Returns nonzero when it has written x. */
-int zmp_convert_hook(zmp_encoder *e, SEXP *x, int depth)
+ * methods can loop. Returns nonzero when it has written x. x is taken by
+ * value: rchk ignores a variable whose address is taken (roadmap Stage 4). */
+int zmp_convert_hook(zmp_encoder *e, SEXP x, int depth)
 {
-    if (!wants_conversion(*x))
+    if (!wants_conversion(x))
         return 0;
-    SEXP y = PROTECT(convert(e, *x));
-    if (y == *x) {
+    SEXP y = PROTECT(convert(e, x));
+    if (y == x) {
         UNPROTECT(1);
         return 0;
     }
-    SEXP kx = PROTECT(Rf_getAttrib(*x, R_ClassSymbol));
+    SEXP kx = PROTECT(Rf_getAttrib(x, R_ClassSymbol));
     SEXP ky = PROTECT(Rf_getAttrib(y, R_ClassSymbol));
     if (R_compute_identical(kx, ky, 16))
         zmp_fail_encode(e, ZMP_ERR_UNSUPPORTED_TYPE,
