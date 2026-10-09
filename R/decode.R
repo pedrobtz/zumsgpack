@@ -62,6 +62,18 @@
 #' again, for MessagePack embedded in an ext, passes that call its own
 #' limits. [as_msgpack()] is the encoding half.
 #'
+#' @section Data frames:
+#' With `data_frame = TRUE`, an array of maps -- the usual way to send a
+#' table, one map per row -- becomes a data frame. Its columns are the
+#' union of the keys, in the order they are first seen; a key a row lacks
+#' is `NA`; and each column simplifies by the same rules as an array, so a
+#' column of mixed kinds is a list column. Row names are not kept, since
+#' the format has none. Rows that share no keys make a frame with as many
+#' columns as rows, quadratic in the input, so the number of cells is
+#' checked against `max_cells` before anything is allocated
+#' (`zumsgpack_cell_limit`). Arrays of any other shape decode as without
+#' the option, and so does an empty array.
+#'
 #' @param x A raw vector holding exactly one MessagePack object
 #'   (`msgpack_decode()`), or zero or more objects back to back
 #'   (`msgpack_decode_seq()`).
@@ -82,6 +94,11 @@
 #' @param ext_handlers `NULL`, or a list of functions of one argument, named
 #'   by extension type from `"-128"` to `"127"`, such as
 #'   `list("5" = function(data) ...)`. See "Extension handlers".
+#' @param data_frame If `TRUE`, an array whose every element is a map with
+#'   non-empty `str` keys, none twice in one map, becomes a data frame: see
+#'   "Data frames".
+#' @param max_cells Most cells (rows times columns) a data frame may have,
+#'   checked before it is allocated, or `Inf`.
 #' @inheritParams msgpack_validate
 #' @return The decoded value; for `msgpack_decode_seq()`, a list with one
 #'   element per object.
@@ -108,10 +125,11 @@ msgpack_decode <- function(x, simplify = c("preserve", "none"),
                            big_integers = c("bigint", "double", "error"),
                            duplicate_keys = FALSE, max_depth = 256L,
                            max_size = 64 * 1024^2, max_items = 1e6,
-                           ext_handlers = NULL) {
+                           ext_handlers = NULL, data_frame = FALSE,
+                           max_cells = 1e7) {
   zmp_decode(x, zmp_mode[["one"]], simplify, map_keys, ext, big_integers,
              duplicate_keys, max_depth, max_size, max_items, ext_handlers,
-             call = sys.call())
+             data_frame, max_cells, call = sys.call())
 }
 
 #' @rdname msgpack_decode
@@ -122,15 +140,16 @@ msgpack_decode_seq <- function(x, simplify = c("preserve", "none"),
                                big_integers = c("bigint", "double", "error"),
                                duplicate_keys = FALSE, max_depth = 256L,
                                max_size = 64 * 1024^2, max_items = 1e6,
-                               ext_handlers = NULL) {
+                               ext_handlers = NULL, data_frame = FALSE,
+                               max_cells = 1e7) {
   zmp_decode(x, zmp_mode[["seq"]], simplify, map_keys, ext, big_integers,
              duplicate_keys, max_depth, max_size, max_items, ext_handlers,
-             call = sys.call())
+             data_frame, max_cells, call = sys.call())
 }
 
 zmp_decode <- function(x, mode, simplify, map_keys, ext, big_integers,
                        duplicate_keys, max_depth, max_size, max_items,
-                       ext_handlers, call) {
+                       ext_handlers, data_frame, max_cells, call) {
   zmp_arg_raw(x, "x", call)
   simplify <- zmp_arg_choice(simplify, "simplify", c("preserve", "none"), call)
   map_keys <- zmp_arg_choice(map_keys, "map_keys", c("auto", "map", "string"), call)
@@ -138,12 +157,15 @@ zmp_decode <- function(x, mode, simplify, map_keys, ext, big_integers,
   big_integers <- zmp_arg_choice(big_integers, "big_integers",
                                  c("bigint", "double", "error"), call)
   zmp_arg_flag(duplicate_keys, "duplicate_keys", call)
+  zmp_arg_flag(data_frame, "data_frame", call)
   zmp_arg_limits(max_depth, max_size, max_items, call)
+  zmp_arg_limit(max_cells, "max_cells", 2^53, allow_inf = TRUE, call)
   handlers <- zmp_arg_handlers(ext_handlers, call)
   if (length(x) > max_size) zmp_raise_fault(zmp_size_fault(max_size), call)
-  opts <- c(mode, duplicate_keys, max_depth, simplify, map_keys, big_integers, ext)
-  res <- .Call(zmp_decode_raw, x, as.integer(opts), as.numeric(max_items), call,
-               handlers)
+  opts <- c(mode, duplicate_keys, max_depth, simplify, map_keys, big_integers, ext,
+            data_frame)
+  res <- .Call(zmp_decode_raw, x, as.integer(opts),
+               c(as.numeric(max_items), as.numeric(max_cells)), call, handlers)
   if (!is.null(res[[1L]])) zmp_raise_fault(res[[1L]], call)
   if (mode == zmp_mode[["prefix"]]) list(value = res[[2L]], consumed = res[[3L]])
   else res[[2L]]

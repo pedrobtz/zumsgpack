@@ -162,19 +162,42 @@ static SEXP as_is(SEXP x)
 }
 
 /* An array's elements, staged. Scalars go into C buffers and cost no R
- * allocation; containers, exts and bins are built as R values into `list`.
- * Most arrays simplify to an atomic vector (design section 6.2), so most
- * never need a SEXP per element: zucbor's Stage 8 measured that as the
- * largest cost of decoding. */
+ * allocation; containers, exts and bins are built as R values into the
+ * list. Most arrays simplify to an atomic vector (design section 6.2), so
+ * most never need a SEXP per element: zucbor's Stage 8 measured that as the
+ * largest cost of decoding. A data frame stages each column the same way.
+ *
+ * The two R vectors a stage may need, the CHARSXPs of its str elements and
+ * the list of its built ones, are allocated on first use into two slots of
+ * a protected holder, so any number of stages share one PROTECT. */
 typedef struct {
     R_xlen_t n;
     int *kinds;
     double *num;            /* INT, INTDBL, FLOAT (exact for all three) */
     int *lgl;               /* LGL */
-    SEXP strs;              /* STR, as CHARSXPs; allocated on first use */
-    SEXP list;              /* elements built as R values; allocated on first use */
-    char *built;            /* nonzero: element i is in list */
+    char *built;            /* nonzero: element i is in the list */
+    SEXP holder;            /* VECSXP; [slot] the strs, [slot + 1] the list */
+    R_xlen_t slot;
 } zmp_stage;
+
+#define STRS(st) VECTOR_ELT((st)->holder, (st)->slot)
+#define LIST(st) VECTOR_ELT((st)->holder, (st)->slot + 1)
+
+/* n elements, every one missing until staged. */
+static void stage_init(zmp_stage *st, R_xlen_t n, SEXP holder, R_xlen_t slot)
+{
+    size_t m = (size_t) n + 1;
+    st->n = n;
+    st->kinds = (int *) R_alloc(m, sizeof(int));
+    st->num = (double *) R_alloc(m, sizeof(double));
+    st->lgl = (int *) R_alloc(m, sizeof(int));
+    st->built = (char *) R_alloc(m, 1);
+    memset(st->built, 0, m);
+    for (R_xlen_t i = 0; i < n; i++)
+        st->kinds[i] = ZMP_KIND_NULL;
+    st->holder = holder;
+    st->slot = slot;
+}
 
 static SEXP stage_scalar(const zmp_stage *st, R_xlen_t i)
 {
@@ -187,7 +210,7 @@ static SEXP stage_scalar(const zmp_stage *st, R_xlen_t i)
     case ZMP_KIND_LGL:
         return Rf_ScalarLogical(st->lgl[i]);
     case ZMP_KIND_STR:
-        return Rf_ScalarString(STRING_ELT(st->strs, i));
+        return Rf_ScalarString(STRING_ELT(STRS(st), i));
     default:
         return R_NilValue;
     }
@@ -197,19 +220,19 @@ static double stage_num(const zmp_stage *st, R_xlen_t i)
 {
     if (!st->built[i])
         return st->num[i];
-    SEXP e = VECTOR_ELT(st->list, i);
+    SEXP e = VECTOR_ELT(LIST(st), i);
     return TYPEOF(e) == INTSXP ? (double) INTEGER(e)[0] : REAL(e)[0];
 }
 
 static SEXP stage_charsxp(const zmp_stage *st, R_xlen_t i)
 {
-    return st->built[i] ? STRING_ELT(VECTOR_ELT(st->list, i), 0) : STRING_ELT(st->strs, i);
+    return st->built[i] ? STRING_ELT(VECTOR_ELT(LIST(st), i), 0) : STRING_ELT(STRS(st), i);
 }
 
 static SEXP decimal_of(const zmp_stage *st, R_xlen_t i)
 {
     if (st->kinds[i] == ZMP_KIND_BIGINT)
-        return STRING_ELT(VECTOR_ELT(st->list, i), 0);
+        return STRING_ELT(VECTOR_ELT(LIST(st), i), 0);
     double v = stage_num(st, i);   /* integer-valued, |v| <= 2^53 */
     char dec[24];
     if (v < 0)
@@ -222,14 +245,13 @@ static SEXP decimal_of(const zmp_stage *st, R_xlen_t i)
 /* The staged elements as a list: every element an R value. */
 static SEXP stage_list(zmp_stage *st)
 {
-    if (st->list == R_NilValue)
-        st->list = Rf_allocVector(VECSXP, st->n);
-    PROTECT(st->list);
+    if (LIST(st) == R_NilValue)
+        SET_VECTOR_ELT(st->holder, st->slot + 1, Rf_allocVector(VECSXP, st->n));
+    SEXP list = LIST(st);
     for (R_xlen_t i = 0; i < st->n; i++)
         if (!st->built[i] && st->kinds[i] != ZMP_KIND_NULL)
-            SET_VECTOR_ELT(st->list, i, stage_scalar(st, i));
-    UNPROTECT(1);
-    return st->list;
+            SET_VECTOR_ELT(list, i, stage_scalar(st, i));
+    return list;
 }
 
 /* The array lattice, design section 6.2 (zucbor section 6.3): an atomic
@@ -265,7 +287,7 @@ static SEXP simplify_staged(const zmp_stage *st)
         out = Rf_allocVector(LGLSXP, n);
         for (R_xlen_t i = 0; i < n; i++)
             LOGICAL(out)[i] = kinds[i] == ZMP_KIND_NULL ? NA_LOGICAL
-                              : st->built[i] ? LOGICAL(VECTOR_ELT(st->list, i))[0] : st->lgl[i];
+                              : st->built[i] ? LOGICAL(VECTOR_ELT(LIST(st), i))[0] : st->lgl[i];
         return out;
     }
     if (numeric && !others) {
@@ -302,9 +324,9 @@ static SEXP simplify_staged(const zmp_stage *st)
     out = PROTECT(Rf_allocVector(REALSXP, n));
     for (R_xlen_t i = 0; i < n; i++) {
         if (kinds[i] == ZMP_KIND_POSIXCT) {
-            REAL(out)[i] = REAL(VECTOR_ELT(st->list, i))[0];
+            REAL(out)[i] = REAL(VECTOR_ELT(LIST(st), i))[0];
             if (proto == R_NilValue)
-                proto = VECTOR_ELT(st->list, i);
+                proto = VECTOR_ELT(LIST(st), i);
         } else {
             REAL(out)[i] = NA_REAL;
         }
@@ -321,82 +343,80 @@ static size_t next_count(zmp_builder *b, size_t at)
     return b->plan->counts[b->next_count++];
 }
 
+/* The object at b->pos into element i of st, advancing b->pos past it:
+ * scalars into the C buffers, anything else built and kept in the list. */
+static void stage_element(zmp_builder *b, zmp_stage *st, R_xlen_t i)
+{
+    size_t el = b->pos;
+    zmp_head e;
+    zmp_read_head(b->buf + el, b->len - el, &e);
+    int staged = 1;
+    switch (e.kind) {
+    case ZMP_K_UINT:
+    case ZMP_K_INT: {
+        const uint64_t two53 = UINT64_C(1) << 53;
+        int neg = e.negative;
+        if (!neg ? e.u <= (uint64_t) INT_MAX : e.u <= (uint64_t) INT_MAX - 1) {
+            st->kinds[i] = ZMP_KIND_INT;
+            st->num[i] = neg ? -1.0 - (double) e.u : (double) e.u;
+        } else if (!neg ? e.u <= two53 : e.u <= two53 - 1) {
+            st->kinds[i] = ZMP_KIND_INTDBL;
+            st->num[i] = neg ? -1.0 - (double) e.u : (double) e.u;
+        } else {
+            staged = 0;         /* wide: big_integers decides, in build() */
+        }
+        break;
+    }
+    case ZMP_K_F32:
+    case ZMP_K_F64:
+        st->kinds[i] = ZMP_KIND_FLOAT;
+        st->num[i] = e.d;
+        break;
+    case ZMP_K_FALSE:
+    case ZMP_K_TRUE:
+        st->kinds[i] = ZMP_KIND_LGL;
+        st->lgl[i] = e.kind == ZMP_K_TRUE;
+        break;
+    case ZMP_K_NIL:
+        st->kinds[i] = ZMP_KIND_NULL;
+        break;
+    case ZMP_K_STR:
+        if (STRS(st) == R_NilValue)
+            SET_VECTOR_ELT(st->holder, st->slot, Rf_allocVector(STRSXP, st->n));
+        SET_STRING_ELT(STRS(st), i, zmp_mkchar(b, (const char *) b->buf + el + e.hlen,
+                                               e.len, el));
+        st->kinds[i] = ZMP_KIND_STR;
+        break;
+    default:
+        staged = 0;
+    }
+    if (staged) {
+        b->pos = el + e.hlen + (e.kind == ZMP_K_STR ? e.len : 0);
+        tick(b);
+        return;
+    }
+    if (LIST(st) == R_NilValue)
+        SET_VECTOR_ELT(st->holder, st->slot + 1, Rf_allocVector(VECSXP, st->n));
+    SET_VECTOR_ELT(LIST(st), i, zmp_build_value(b, &st->kinds[i]));
+    st->built[i] = 1;
+}
+
+static SEXP build_data_frame(zmp_builder *b, R_xlen_t n, size_t at, int *kind);
+
 static SEXP build_array(zmp_builder *b, const zmp_head *h, size_t at, int *kind)
 {
-    zmp_stage st;
     (void) h;
-    st.n = (R_xlen_t) next_count(b, at);
-    size_t m = (size_t) st.n + 1;
-    st.kinds = (int *) R_alloc(m, sizeof(int));
-    st.num = (double *) R_alloc(m, sizeof(double));
-    st.lgl = (int *) R_alloc(m, sizeof(int));
-    st.built = (char *) R_alloc(m, 1);
-    memset(st.built, 0, m);
-    st.strs = R_NilValue;
-    st.list = R_NilValue;
-    PROTECT_INDEX strs_ix, list_ix;
-    PROTECT_WITH_INDEX(st.strs, &strs_ix);
-    PROTECT_WITH_INDEX(st.list, &list_ix);
-
-    for (R_xlen_t i = 0; i < st.n; i++) {
-        size_t el = b->pos;
-        zmp_head e;
-        zmp_read_head(b->buf + el, b->len - el, &e);
-        int staged = 1;
-        switch (e.kind) {
-        case ZMP_K_UINT:
-        case ZMP_K_INT: {
-            const uint64_t two53 = UINT64_C(1) << 53;
-            int neg = e.negative;
-            if (!neg ? e.u <= (uint64_t) INT_MAX : e.u <= (uint64_t) INT_MAX - 1) {
-                st.kinds[i] = ZMP_KIND_INT;
-                st.num[i] = neg ? -1.0 - (double) e.u : (double) e.u;
-            } else if (!neg ? e.u <= two53 : e.u <= two53 - 1) {
-                st.kinds[i] = ZMP_KIND_INTDBL;
-                st.num[i] = neg ? -1.0 - (double) e.u : (double) e.u;
-            } else {
-                staged = 0;         /* wide: big_integers decides, in build() */
-            }
-            break;
-        }
-        case ZMP_K_F32:
-        case ZMP_K_F64:
-            st.kinds[i] = ZMP_KIND_FLOAT;
-            st.num[i] = e.d;
-            break;
-        case ZMP_K_FALSE:
-        case ZMP_K_TRUE:
-            st.kinds[i] = ZMP_KIND_LGL;
-            st.lgl[i] = e.kind == ZMP_K_TRUE;
-            break;
-        case ZMP_K_NIL:
-            st.kinds[i] = ZMP_KIND_NULL;
-            break;
-        case ZMP_K_STR: {
-            if (st.strs == R_NilValue) {
-                st.strs = Rf_allocVector(STRSXP, st.n);
-                REPROTECT(st.strs, strs_ix);
-            }
-            SET_STRING_ELT(st.strs, i, zmp_mkchar(b, (const char *) b->buf + el + e.hlen,
-                                                  e.len, el));
-            st.kinds[i] = ZMP_KIND_STR;
-            break;
-        }
-        default:
-            staged = 0;
-        }
-        if (staged) {
-            b->pos = el + e.hlen + (e.kind == ZMP_K_STR ? e.len : 0);
-            tick(b);
-            continue;
-        }
-        if (st.list == R_NilValue) {
-            st.list = Rf_allocVector(VECSXP, st.n);
-            REPROTECT(st.list, list_ix);
-        }
-        SET_VECTOR_ELT(st.list, i, zmp_build_value(b, &st.kinds[i]));
-        st.built[i] = 1;
+    R_xlen_t n = (R_xlen_t) next_count(b, at);
+    if (b->data_frame && n > 0) {
+        SEXP df = build_data_frame(b, n, at, kind);
+        if (df != R_NilValue)
+            return df;
     }
+    SEXP holder = PROTECT(Rf_allocVector(VECSXP, 2));
+    zmp_stage st;
+    stage_init(&st, n, holder, 0);
+    for (R_xlen_t i = 0; i < n; i++)
+        stage_element(b, &st, i);
 
     SEXP out = b->simplify == ZMP_SIMPLIFY_PRESERVE ? simplify_staged(&st) : R_NilValue;
     if (out == R_NilValue)
@@ -404,7 +424,218 @@ static SEXP build_array(zmp_builder *b, const zmp_head *h, size_t at, int *kind)
     else
         out = as_is(out);
     *kind = ZMP_KIND_OTHER;
-    UNPROTECT(2);
+    UNPROTECT(1);
+    return out;
+}
+
+/* ---- data frames (design section 6.4) --------------------------------------------- */
+
+/* The offset just past the object at pos. The input has been checked, so
+ * every head is complete; containers are skipped by counting the objects
+ * still owed, with no recursion. */
+static size_t skip_object(const zmp_builder *b, size_t pos)
+{
+    uint64_t owed = 1;
+    while (owed) {
+        zmp_head h;
+        zmp_read_head(b->buf + pos, b->len - pos, &h);
+        pos += h.hlen;
+        owed--;
+        switch (h.kind) {
+        case ZMP_K_STR: case ZMP_K_BIN: case ZMP_K_EXT: pos += h.len; break;
+        case ZMP_K_ARRAY: owed += h.len; break;
+        case ZMP_K_MAP: owed += 2 * (uint64_t) h.len; break;
+        default: break;
+        }
+    }
+    return pos;
+}
+
+/* Column names, found by CHARSXP: R caches CHARSXPs, so equal UTF-8 names
+ * are one pointer. An open-addressing table of column indices, R_alloc()ed;
+ * the names themselves are kept alive in a protected STRSXP. */
+typedef struct {
+    R_xlen_t *slots;        /* -1: empty */
+    size_t cap;             /* a power of two */
+    SEXP names;             /* STRSXP, grown by doubling, in a holder slot */
+    R_xlen_t n;
+} zmp_columns;
+
+static size_t charsxp_hash(SEXP s, size_t cap)
+{
+    uintptr_t p = (uintptr_t) s;
+    p ^= p >> 17;
+    p *= (uintptr_t) 0x9e3779b97f4a7c15u;
+    return (size_t) (p >> 7) & (cap - 1);
+}
+
+static R_xlen_t column_find(const zmp_columns *c, SEXP s)
+{
+    for (size_t k = charsxp_hash(s, c->cap);; k = (k + 1) & (c->cap - 1)) {
+        R_xlen_t j = c->slots[k];
+        if (j < 0)
+            return -1;
+        if (STRING_ELT(c->names, j) == s)
+            return j;
+    }
+}
+
+static void column_rehash(zmp_columns *c, size_t cap)
+{
+    c->slots = (R_xlen_t *) R_alloc(cap, sizeof(R_xlen_t));
+    for (size_t k = 0; k < cap; k++)
+        c->slots[k] = -1;
+    c->cap = cap;
+    for (R_xlen_t j = 0; j < c->n; j++) {
+        size_t k = charsxp_hash(STRING_ELT(c->names, j), cap);
+        while (c->slots[k] >= 0)
+            k = (k + 1) & (cap - 1);
+        c->slots[k] = j;
+    }
+}
+
+/* Adds a name not yet present; holder[0] keeps the names alive. */
+static R_xlen_t column_add(zmp_columns *c, SEXP s, SEXP holder)
+{
+    if (c->n == XLENGTH(c->names)) {
+        SEXP grown = PROTECT(Rf_allocVector(STRSXP, 2 * XLENGTH(c->names)));
+        for (R_xlen_t j = 0; j < c->n; j++)
+            SET_STRING_ELT(grown, j, STRING_ELT(c->names, j));
+        SET_VECTOR_ELT(holder, 0, grown);
+        c->names = grown;
+        UNPROTECT(1);
+    }
+    SET_STRING_ELT(c->names, c->n, s);
+    c->n++;
+    if (2 * (size_t) c->n > c->cap)
+        column_rehash(c, 2 * c->cap);
+    else {
+        size_t k = charsxp_hash(s, c->cap);
+        while (c->slots[k] >= 0)
+            k = (k + 1) & (c->cap - 1);
+        c->slots[k] = c->n - 1;
+    }
+    return c->n - 1;
+}
+
+/* An array whose every element is a map with non-empty str keys, none twice
+ * in one map, as a data frame: columns in first-seen order, a key a row
+ * lacks NA, each column through the lattice with the kinds its cells were
+ * built with (zucbor section 6.10, zujson section 6). Returns R_NilValue,
+ * having read nothing, when the array is not of that shape. The cell budget
+ * max_cells is checked before any column is allocated: rows that share no
+ * keys make a frame quadratic in the input. */
+static SEXP build_data_frame(zmp_builder *b, R_xlen_t n, size_t at, int *kind)
+{
+    if (n > INT_MAX)            /* compact row names are an int */
+        return R_NilValue;
+    SEXP holder = PROTECT(Rf_allocVector(VECSXP, 1));
+    zmp_columns cols;
+    cols.names = Rf_allocVector(STRSXP, 16);
+    SET_VECTOR_ELT(holder, 0, cols.names);
+    cols.n = 0;
+    cols.slots = NULL;
+    column_rehash(&cols, 64);
+    R_xlen_t *seen_in_row = NULL;   /* the last row each column was set in */
+    size_t seen_cap = 0;
+
+    /* The shape, without building anything but the names. */
+    size_t p = b->pos;
+    for (R_xlen_t i = 0; i < n; i++) {
+        zmp_head h;
+        zmp_read_head(b->buf + p, b->len - p, &h);
+        if (h.kind != ZMP_K_MAP) {
+            UNPROTECT(1);
+            return R_NilValue;
+        }
+        p += h.hlen;
+        for (uint32_t k = 0; k < h.len; k++) {
+            zmp_head kh;
+            zmp_read_head(b->buf + p, b->len - p, &kh);
+            if (kh.kind != ZMP_K_STR || kh.len == 0) {
+                UNPROTECT(1);
+                return R_NilValue;
+            }
+            SEXP s = zmp_mkchar(b, (const char *) b->buf + p + kh.hlen, kh.len, p);
+            R_xlen_t j = column_find(&cols, s);
+            if (j < 0) {
+                PROTECT(s);
+                j = column_add(&cols, s, holder);
+                UNPROTECT(1);
+            }
+            if ((size_t) cols.n > seen_cap) {
+                size_t cap = seen_cap ? 2 * seen_cap : 64;
+                while (cap < (size_t) cols.n)
+                    cap *= 2;
+                R_xlen_t *grown = (R_xlen_t *) R_alloc(cap, sizeof(R_xlen_t));
+                for (size_t q = 0; q < cap; q++)
+                    grown[q] = q < seen_cap ? seen_in_row[q] : -1;
+                seen_in_row = grown;
+                seen_cap = cap;
+            }
+            if (seen_in_row[j] == i) {          /* a key twice in one row */
+                UNPROTECT(1);
+                return R_NilValue;
+            }
+            seen_in_row[j] = i;
+            p = skip_object(b, p + kh.hlen + kh.len);
+        }
+    }
+
+    double cells = (double) n * (double) cols.n;
+    if (cells > b->max_cells) {
+        zmp_fault f;
+        f.status = ZMP_ERR_CELL_LIMIT;
+        f.detail = NULL;
+        f.offset = (double) at;
+        f.limit = "max_cells";
+        f.limit_value = b->max_cells;
+        zmp_raise(&f, b->call);
+    }
+
+    /* The cells, each staged in its column. */
+    R_xlen_t nc = cols.n;
+    SEXP stages = PROTECT(Rf_allocVector(VECSXP, 2 * nc));
+    zmp_stage *st = (zmp_stage *) R_alloc((size_t) nc + 1, sizeof(zmp_stage));
+    for (R_xlen_t j = 0; j < nc; j++)
+        stage_init(&st[j], n, stages, 2 * j);
+    for (R_xlen_t i = 0; i < n; i++) {
+        size_t row_at = b->pos;
+        zmp_head h;
+        zmp_read_head(b->buf + row_at, b->len - row_at, &h);
+        (void) next_count(b, row_at);           /* the row map's plan entry */
+        b->pos = row_at + h.hlen;
+        tick(b);
+        for (uint32_t k = 0; k < h.len; k++) {
+            zmp_head kh;
+            zmp_read_head(b->buf + b->pos, b->len - b->pos, &kh);
+            SEXP s = PROTECT(zmp_mkchar(b, (const char *) b->buf + b->pos + kh.hlen, kh.len, b->pos));
+            R_xlen_t j = column_find(&cols, s);
+            UNPROTECT(1);
+            b->pos += kh.hlen + kh.len;
+            tick(b);
+            stage_element(b, &st[j], i);
+        }
+    }
+
+    SEXP out = PROTECT(Rf_allocVector(VECSXP, nc));
+    for (R_xlen_t j = 0; j < nc; j++) {
+        SEXP col = b->simplify == ZMP_SIMPLIFY_PRESERVE ? simplify_staged(&st[j]) : R_NilValue;
+        if (col == R_NilValue)
+            col = stage_list(&st[j]);
+        SET_VECTOR_ELT(out, j, col);
+    }
+    SEXP names = PROTECT(Rf_allocVector(STRSXP, nc));
+    for (R_xlen_t j = 0; j < nc; j++)
+        SET_STRING_ELT(names, j, STRING_ELT(cols.names, j));
+    Rf_setAttrib(out, R_NamesSymbol, names);
+    SEXP rn = PROTECT(Rf_allocVector(INTSXP, 2));
+    INTEGER(rn)[0] = NA_INTEGER;
+    INTEGER(rn)[1] = -(int) n;
+    Rf_setAttrib(out, R_RowNamesSymbol, rn);
+    set_class(out, "data.frame");
+    *kind = ZMP_KIND_OTHER;
+    UNPROTECT(5);
     return out;
 }
 
@@ -707,15 +938,17 @@ SEXP zmp_build_value(zmp_builder *b, int *kind)
 
 /* ---- entry point --------------------------------------------------------------- */
 
-/* opts: mode (0 one object, 1 a sequence, 2 a prefix, 3 a stream), duplicate_keys,
- * max_depth, simplify, map_keys, big_integers, ext (integer codes,
- * validated in R). handlers: NULL, or list(types, functions, namespace)
+/* opts: mode (0 one object, 1 a sequence, 2 a prefix, 3 a stream),
+ * duplicate_keys, max_depth, simplify, map_keys, big_integers, ext,
+ * data_frame (integer codes, validated in R). limits: max_items and
+ * max_cells. handlers: NULL, or list(types, functions, namespace)
  * from R. Returns list(fault, value, consumed): a check-phase fault is
  * returned for R to raise with the user's call; a build-phase one is
  * raised here. */
-SEXP zmp_decode_raw(SEXP x, SEXP opts, SEXP max_items, SEXP call, SEXP handlers)
+SEXP zmp_decode_raw(SEXP x, SEXP opts, SEXP limits, SEXP call, SEXP handlers)
 {
-    if (TYPEOF(x) != RAWSXP || TYPEOF(opts) != INTSXP || XLENGTH(opts) != 7)
+    if (TYPEOF(x) != RAWSXP || TYPEOF(opts) != INTSXP || XLENGTH(opts) != 8 ||
+        TYPEOF(limits) != REALSXP || XLENGTH(limits) != 2)
         Rf_error("zmp_decode_raw: arguments must be validated in R");
     if (handlers != R_NilValue
         && (TYPEOF(handlers) != VECSXP || XLENGTH(handlers) != 3
@@ -731,8 +964,9 @@ SEXP zmp_decode_raw(SEXP x, SEXP opts, SEXP max_items, SEXP call, SEXP handlers)
     opt.mode = o[0];
     opt.duplicate_keys = o[1];
     opt.max_depth = o[2];
-    double mi = Rf_asReal(max_items);
-    if (opt.max_depth < 1 || opt.max_depth > ZMP_MAX_DEPTH_CAP || ISNAN(mi) || mi < 1)
+    double mi = REAL(limits)[0], mc = REAL(limits)[1];
+    if (opt.max_depth < 1 || opt.max_depth > ZMP_MAX_DEPTH_CAP || ISNAN(mi) || mi < 1 ||
+        ISNAN(mc) || mc < 1)
         Rf_error("zmp_decode_raw: limits must be validated in R");
     opt.max_items = R_FINITE(mi) ? (uint64_t) mi : UINT64_MAX;
 
@@ -757,6 +991,8 @@ SEXP zmp_decode_raw(SEXP x, SEXP opts, SEXP max_items, SEXP call, SEXP handlers)
     b.map_keys = o[4];
     b.big_integers = o[5];
     b.ext_convert = o[6] == 0;
+    b.data_frame = o[7];
+    b.max_cells = mc;
     b.call = call;
     if (handlers != R_NilValue) {
         /* A slot per type; the functions stay protected through handlers,

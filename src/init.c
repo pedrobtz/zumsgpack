@@ -10,6 +10,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"zmp_check_raw",    (DL_FUNC) &zmp_check_raw,    5},
     {"zmp_decode_raw",   (DL_FUNC) &zmp_decode_raw,   5},
     {"zmp_encode_raw",   (DL_FUNC) &zmp_encode_raw,   4},
+    {"zmp_annotate_raw", (DL_FUNC) &zmp_annotate_raw, 3},
     {NULL, NULL, 0}
 };
 

@@ -34,8 +34,9 @@ msgpack_decode_prefix <- function(x, simplify = c("preserve", "none"),
                                   big_integers = c("bigint", "double", "error"),
                                   duplicate_keys = FALSE, max_depth = 256L,
                                   max_size = 64 * 1024^2, max_items = 1e6,
-                                  ext_handlers = NULL) {
+                                  ext_handlers = NULL, data_frame = FALSE,
+                                  max_cells = 1e7) {
   zmp_decode(x, zmp_mode[["prefix"]], simplify, map_keys, ext, big_integers,
              duplicate_keys, max_depth, max_size, max_items, ext_handlers,
-             call = sys.call())
+             data_frame, max_cells, call = sys.call())
 }

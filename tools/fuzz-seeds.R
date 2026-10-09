@@ -37,11 +37,19 @@ zmp_suite_seeds <- function(tsv) {
   out
 }
 
+# Every object Python's msgpack wrote (Stage 6), whole.
+zmp_python_seeds <- function(tsv) {
+  p <- utils::read.delim(tsv, colClasses = "character", quote = "", encoding = "UTF-8")
+  lapply(p$hex, zmp_seed_hex)
+}
+
 if (!interactive() && sys.nframe() == 0L) {
   dir <- commandArgs(trailingOnly = TRUE)[1]
   dir.create(dir, showWarnings = FALSE, recursive = TRUE)
   seeds <- c(zmp_suite_seeds(file.path("tests", "testthat", "fixtures",
                                        "msgpack-test-suite.tsv")),
+             zmp_python_seeds(file.path("tests", "testthat", "fixtures",
+                                        "python-msgpack.tsv")),
              zmp_hostile())
   for (i in seq_along(seeds))
     writeBin(seeds[[i]], file.path(dir, sprintf("seed-%05d", i)))

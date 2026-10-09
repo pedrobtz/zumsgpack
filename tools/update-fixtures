@@ -86,11 +86,21 @@ utils::write.table(tab, file.path(out, "msgpack-test-suite.tsv"), sep = "\t",
                    quote = FALSE, row.names = FALSE, fileEncoding = "UTF-8")
 writeBin(licence, file.path(out, "msgpack-test-suite-LICENSE"))
 
+# Python's msgpack, at the version tools/make-fixtures.py pins: objects
+# written by another implementation, each with Python's own decoding.
+python <- Sys.getenv("PYTHON", "python3")
+status <- system2(python, c("-I", file.path("tools", "make-fixtures.py"),
+                            file.path(out, "python-msgpack.tsv")))
+if (status != 0) stop("tools/make-fixtures.py failed; is msgpack 1.1.1 installed for ", python, "?")
+py_bytes <- readBin(file.path(out, "python-msgpack.tsv"), "raw",
+                    file.size(file.path(out, "python-msgpack.tsv")))
+
 manifest <- data.frame(
-  file = c("msgpack-test-suite.tsv", "msgpack-test-suite-LICENSE"),
-  source = c(paste0(base, "dist/msgpack-test-suite.json"), paste0(base, "LICENSE")),
-  source_sha256 = c(SUITE_SHA256, sha256(licence)),
-  licence = c("MIT", "MIT"),
+  file = c("msgpack-test-suite.tsv", "msgpack-test-suite-LICENSE", "python-msgpack.tsv"),
+  source = c(paste0(base, "dist/msgpack-test-suite.json"), paste0(base, "LICENSE"),
+             "Python msgpack 1.1.1 (PyPI) through tools/make-fixtures.py"),
+  source_sha256 = c(SUITE_SHA256, sha256(licence), sha256(py_bytes)),
+  licence = c("MIT", "MIT", "Apache-2.0 (the library); the objects are this package's"),
   stringsAsFactors = FALSE)
 utils::write.table(manifest, file.path(out, "MANIFEST.tsv"), sep = "\t",
                    quote = FALSE, row.names = FALSE)

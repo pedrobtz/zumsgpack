@@ -14,7 +14,9 @@ msgpack_decode_prefix(
   max_depth = 256L,
   max_size = 64 * 1024^2,
   max_items = 1e+06,
-  ext_handlers = NULL
+  ext_handlers = NULL,
+  data_frame = FALSE,
+  max_cells = 1e+07
 )
 }
 \arguments{
@@ -52,6 +54,13 @@ value and element, or \code{Inf}.}
 \item{ext_handlers}{\code{NULL}, or a list of functions of one argument, named
 by extension type from \code{"-128"} to \code{"127"}, such as
 \code{list("5" = function(data) ...)}. See "Extension handlers".}
+
+\item{data_frame}{If \code{TRUE}, an array whose every element is a map with
+non-empty \code{str} keys, none twice in one map, becomes a data frame: see
+"Data frames".}
+
+\item{max_cells}{Most cells (rows times columns) a data frame may have,
+checked before it is allocated, or \code{Inf}.}
 }
 \value{
 A list: \code{value}, the decoded object, and \code{consumed}, the number

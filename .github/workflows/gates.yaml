@@ -6,6 +6,10 @@
 #               section 14)
 #   standalone  the check phase builds with no R headers and is clean under
 #               ASan and UBSan over every seed in every mode (roadmap Stage 1)
+#   conformance the fixtures equal their regeneration from pinned sources, and
+#               Python's msgpack agrees with zumsgpack on every object, any
+#               difference attributed by rule (roadmap Stage 6); needs the
+#               network, so it lives here and never in the test suite
 on:
   push:
     branches: [main, master]
@@ -59,3 +63,27 @@ jobs:
         env:
           CC: clang
         run: tools/run-standalone
+
+  conformance:
+    runs-on: ubuntu-latest
+    name: conformance
+    steps:
+      - uses: actions/checkout@v4
+      - uses: r-lib/actions/setup-r@v2
+        with:
+          use-public-rspm: true
+      - uses: r-lib/actions/setup-r-dependencies@v2
+        with:
+          dependencies: '"hard"'
+          extra-packages: any::jsonlite
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install the oracle, pinned
+        run: python -m pip install msgpack==1.1.1
+      - name: Install zumsgpack
+        run: R CMD INSTALL .
+      - name: Run
+        env:
+          PYTHON: python
+        run: tools/run-conformance

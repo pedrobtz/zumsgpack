@@ -685,7 +685,7 @@ issue on `zucbor` (principle 8).
 
 ## Stage 6 — Data frames, annotate, conformance corpus · M
 
-**Status:** not started.
+**Status:** complete.
 
 **Do**
 
@@ -728,6 +728,45 @@ issue on `zucbor` (principle 8).
 - The conformance run has zero unexplained deviations and has been seen
   to fail with a baseline lowered and with a rule removed.
 - The oracle agrees on every fixture in both directions.
+
+**What actually happened**
+
+- **msgpack-c has no test vectors to fetch.** Its `test/` directory is
+  C++ code (`pack_unpack_c.cpp`, `streaming_c.cpp`), not data, so the
+  corpus is the suite plus Python's objects; design §15 says so now.
+- **Python's objects carry Python's own decoding.** `tools/make-fixtures.py`
+  (msgpack 1.1.1, pinned and checked) writes 91 objects: every integer
+  boundary, floats in both widths, every str, bin, array and map head up
+  to 16 bits, exts, eleven timestamps, a table of records and a Fluentd
+  forward-mode stream with EventTime exts. Each row records what Python
+  read back in a canonical text form, so `test-conformance.R` compares
+  zumsgpack with another implementation without running it. Python's
+  writer is in zumsgpack's §8 form for all but eleven objects, and each
+  of the eleven has a stated cause (float 32 rows, a whole float, three
+  maps with unsorted keys, three timestamps with more nanoseconds than a
+  double holds); the test pins exactly that set.
+- **The oracle is a script, not `reticulate`.** The canonical form
+  (`tools/canon.py`, `helper-canon.R`) lets `tools/oracle.py` compare
+  346 objects (suite, Python's, and zumsgpack's encoding of every §7.1
+  row) with no R-Python bridge, so the package gains no `Suggests`.
+- **The oracle found one real difference, and a rule names it.** Python's
+  `ExtType` refuses the reserved types −128 to −2 on unpack ("code must
+  be 0~127"); zumsgpack reads them, as §18 Q2 decided. The rule
+  `python-refuses-reserved-ext` attributes exactly one difference, the
+  baseline says 1, and the runner refuses a corrupted row, a raised
+  baseline and a lowered one before the real run.
+- **Data frames reuse the array staging.** The per-element staging was
+  factored out of `build_array()`, so a column is staged and simplified
+  exactly as an array is. Detection is a pre-scan that builds nothing but
+  the column names (found by CHARSXP pointer in an open-addressing
+  table), and `max_cells` is checked between the scan and the first
+  column: 4,000 rows sharing no keys (16 million cells from 36 kB) are
+  refused at offset 0. Encoding sorts the column names once and writes
+  every row with them. zucbor's Stage 14 is the same feature and is not
+  started either; these choices go to it (principle 8).
+- **`msgpack_annotate()`** walks iteratively with a stack of owed
+  elements and writes every byte once: tested over every suite encoding
+  and every Python object, the Fluentd stream included.
 
 ---
 

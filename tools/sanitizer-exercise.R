@@ -8,6 +8,8 @@ source(file.path("tools", "fuzz-seeds.R"))
 
 seeds <- c(zmp_suite_seeds(file.path("tests", "testthat", "fixtures",
                                      "msgpack-test-suite.tsv")),
+           zmp_python_seeds(file.path("tests", "testthat", "fixtures",
+                                      "python-msgpack.tsv")),
            zmp_hostile())
 n <- 0L
 for (x in seeds) {
@@ -79,5 +81,19 @@ for (chunk in c(1L, 3L, 7L)) {
            zumsgpack_error = function(e) NULL)
   close(con)
 }
-cat(sprintf("==> %d checks, %d decodes and %d encodes over %d seeds; handlers, timestamps, streams\n",
+
+# Stage 6: every seed as data frames and annotated, faults included, and a
+# wide frame against the cell budget.
+for (x in seeds) {
+  tryCatch(msgpack_decode(x, data_frame = TRUE, max_cells = 50), zumsgpack_error = function(e) NULL)
+  tryCatch(msgpack_annotate(x), zumsgpack_error = function(e) NULL)
+  tryCatch(msgpack_annotate(x, sequence = TRUE), zumsgpack_error = function(e) NULL)
+}
+wide <- msgpack_encode(lapply(1:300, function(i) stats::setNames(list(i), paste0("k", i))))
+tryCatch(msgpack_decode(wide, data_frame = TRUE, max_cells = 1000), zumsgpack_error = function(e) NULL)
+msgpack_decode(wide, data_frame = TRUE)
+df <- data.frame(a = 1:3, b = c("x", NA, "z"), t = structure(c(0, 1.5, NA), class = c("POSIXct", "POSIXt")))
+df$l <- list(1:2, NULL, list(a = 1))
+for (i in 1:100) msgpack_decode(msgpack_encode(df), data_frame = TRUE)
+cat(sprintf("==> %d checks, %d decodes and %d encodes over %d seeds; handlers, timestamps, streams, frames, annotations\n",
             n, decoded, encoded, length(seeds)))

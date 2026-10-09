@@ -11,7 +11,7 @@ msgpack_read_seq(file, ..., each = NULL, max_size = 64 * 1024^2)
 
 \item{...}{Arguments passed on to \code{\link[=msgpack_decode_seq]{msgpack_decode_seq()}}: \code{simplify},
 \code{map_keys}, \code{ext}, \code{big_integers}, \code{duplicate_keys}, \code{max_depth},
-\code{max_items} and \code{ext_handlers}.}
+\code{max_items}, \code{ext_handlers}, \code{data_frame} and \code{max_cells}.}
 
 \item{each}{\code{NULL}, or a function called with each object in turn.}
 
