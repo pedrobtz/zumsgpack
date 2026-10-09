@@ -131,11 +131,13 @@ test_that("a million objects are read in memory bounded by the largest", {
 
 test_that("an interrupt during a stream read unwinds", {
   skip_heavy()
+  # Long enough that no build finishes it inside the limit: a million
+  # objects, each passed to an R function.
   one <- msgpack_encode(1:3)
-  con <- rawConnection(rep(one, 2e5))
+  con <- rawConnection(rep(one, 1e6))
   on.exit(close(con))
   interrupted <- tryCatch({
-    setTimeLimit(elapsed = 0.02, transient = TRUE)
+    setTimeLimit(elapsed = 0.01, transient = TRUE)
     zmp_read_stream(con, function(v) NULL, 64 * 1024^2, list(), NULL)
     FALSE
   }, error = function(e) TRUE, finally = setTimeLimit())
