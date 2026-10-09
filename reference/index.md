@@ -8,6 +8,8 @@
   [`msgpack_ext()`](https://pedrobtz.github.io/zumsgpack/reference/msgpack-values.md)
   [`msgpack_bigint()`](https://pedrobtz.github.io/zumsgpack/reference/msgpack-values.md)
   : MessagePack values without a native R type
+- [`msgpack_annotate()`](https://pedrobtz.github.io/zumsgpack/reference/msgpack_annotate.md)
+  : Annotated hex dump of MessagePack
 - [`msgpack_decode()`](https://pedrobtz.github.io/zumsgpack/reference/msgpack_decode.md)
   [`msgpack_decode_seq()`](https://pedrobtz.github.io/zumsgpack/reference/msgpack_decode.md)
   : Decode MessagePack

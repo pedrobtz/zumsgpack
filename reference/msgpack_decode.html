@@ -61,7 +61,9 @@ allocate for data the input does not hold.</p>
 <span>  max_depth <span class="op">=</span> <span class="fl">256L</span>,</span>
 <span>  max_size <span class="op">=</span> <span class="fl">64</span> <span class="op">*</span> <span class="fl">1024</span><span class="op">^</span><span class="fl">2</span>,</span>
 <span>  max_items <span class="op">=</span> <span class="fl">1e+06</span>,</span>
-<span>  ext_handlers <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  ext_handlers <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  data_frame <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  max_cells <span class="op">=</span> <span class="fl">1e+07</span></span>
 <span><span class="op">)</span></span>
 <span></span>
 <span><span class="fu">msgpack_decode_seq</span><span class="op">(</span></span>
@@ -74,7 +76,9 @@ allocate for data the input does not hold.</p>
 <span>  max_depth <span class="op">=</span> <span class="fl">256L</span>,</span>
 <span>  max_size <span class="op">=</span> <span class="fl">64</span> <span class="op">*</span> <span class="fl">1024</span><span class="op">^</span><span class="fl">2</span>,</span>
 <span>  max_items <span class="op">=</span> <span class="fl">1e+06</span>,</span>
-<span>  ext_handlers <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  ext_handlers <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  data_frame <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  max_cells <span class="op">=</span> <span class="fl">1e+07</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -138,6 +142,17 @@ value and element, or <code>Inf</code>.</p></dd>
 by extension type from <code>"-128"</code> to <code>"127"</code>, such as
 <code>list("5" = function(data) ...)</code>. See "Extension handlers".</p></dd>
 
+
+<dt id="arg-data-frame">data_frame<a class="anchor" aria-label="anchor" href="#arg-data-frame"></a></dt>
+<dd><p>If <code>TRUE</code>, an array whose every element is a map with
+non-empty <code>str</code> keys, none twice in one map, becomes a data frame: see
+"Data frames".</p></dd>
+
+
+<dt id="arg-max-cells">max_cells<a class="anchor" aria-label="anchor" href="#arg-max-cells"></a></dt>
+<dd><p>Most cells (rows times columns) a data frame may have,
+checked before it is allocated, or <code>Inf</code>.</p></dd>
+
 </dl></div>
     <div class="section level2">
     <h2 id="value">Value<a class="anchor" aria-label="anchor" href="#value"></a></h2>
@@ -183,6 +198,21 @@ becomes <code>zumsgpack_handler_error</code>, with the type as <code>type</code>
 original condition as <code>parent</code>. A handler that calls <code>msgpack_decode()</code>
 again, for MessagePack embedded in an ext, passes that call its own
 limits. <code><a href="as_msgpack.html">as_msgpack()</a></code> is the encoding half.</p>
+    </div>
+    <div class="section level2">
+    <h2 id="data-frames">Data frames<a class="anchor" aria-label="anchor" href="#data-frames"></a></h2>
+
+
+<p>With <code>data_frame = TRUE</code>, an array of maps – the usual way to send a
+table, one map per row – becomes a data frame. Its columns are the
+union of the keys, in the order they are first seen; a key a row lacks
+is <code>NA</code>; and each column simplifies by the same rules as an array, so a
+column of mixed kinds is a list column. Row names are not kept, since
+the format has none. Rows that share no keys make a frame with as many
+columns as rows, quadratic in the input, so the number of cells is
+checked against <code>max_cells</code> before anything is allocated
+(<code>zumsgpack_cell_limit</code>). Arrays of any other shape decode as without
+the option, and so does an empty array.</p>
     </div>
     <div class="section level2">
     <h2 id="see-also">See also<a class="anchor" aria-label="anchor" href="#see-also"></a></h2>

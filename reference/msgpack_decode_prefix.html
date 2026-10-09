@@ -61,7 +61,9 @@ arguments; what follows it is not read at all.</p>
 <span>  max_depth <span class="op">=</span> <span class="fl">256L</span>,</span>
 <span>  max_size <span class="op">=</span> <span class="fl">64</span> <span class="op">*</span> <span class="fl">1024</span><span class="op">^</span><span class="fl">2</span>,</span>
 <span>  max_items <span class="op">=</span> <span class="fl">1e+06</span>,</span>
-<span>  ext_handlers <span class="op">=</span> <span class="cn">NULL</span></span>
+<span>  ext_handlers <span class="op">=</span> <span class="cn">NULL</span>,</span>
+<span>  data_frame <span class="op">=</span> <span class="cn">FALSE</span>,</span>
+<span>  max_cells <span class="op">=</span> <span class="fl">1e+07</span></span>
 <span><span class="op">)</span></span></code></pre></div>
     </div>
 
@@ -122,6 +124,17 @@ value and element, or <code>Inf</code>.</p></dd>
 <dd><p><code>NULL</code>, or a list of functions of one argument, named
 by extension type from <code>"-128"</code> to <code>"127"</code>, such as
 <code>list("5" = function(data) ...)</code>. See "Extension handlers".</p></dd>
+
+
+<dt id="arg-data-frame">data_frame<a class="anchor" aria-label="anchor" href="#arg-data-frame"></a></dt>
+<dd><p>If <code>TRUE</code>, an array whose every element is a map with
+non-empty <code>str</code> keys, none twice in one map, becomes a data frame: see
+"Data frames".</p></dd>
+
+
+<dt id="arg-max-cells">max_cells<a class="anchor" aria-label="anchor" href="#arg-max-cells"></a></dt>
+<dd><p>Most cells (rows times columns) a data frame may have,
+checked before it is allocated, or <code>Inf</code>.</p></dd>
 
 </dl></div>
     <div class="section level2">

@@ -44,6 +44,8 @@
 <li>Timestamps (ext type -1) decode to <code>POSIXct</code> in UTC and <code>POSIXct</code> and <code>Date</code> encode as the smallest of the three layouts that holds the instant, nanoseconds rounded by one rule on every host. <code>ext = "keep"</code> leaves them as <code>msgpack_ext</code>. <code>ext_handlers</code> gives meaning to extension types, and the <code><a href="../reference/as_msgpack.html">as_msgpack()</a></code> generic teaches the encoder a class (roadmap Stage 4).</li>
 <li>
 <code><a href="../reference/msgpack_decode_prefix.html">msgpack_decode_prefix()</a></code> decodes the object a raw vector starts with and says how many bytes it used. <code><a href="../reference/msgpack_read_seq.html">msgpack_read_seq()</a></code> reads objects back to back; with <code>each =</code> it passes each one on as soon as it has been checked whole, in memory bounded by the largest object (roadmap Stage 5).</li>
+<li>
+<code>data_frame = TRUE</code> decodes an array of records as a data frame, within a <code>max_cells</code> budget checked before allocation; data frames encode as an array of maps. <code><a href="../reference/msgpack_annotate.html">msgpack_annotate()</a></code> prints an annotated hex dump. Python’s msgpack is the conformance oracle (roadmap Stage 6).</li>
 </ul></div>
   </main></div>
 

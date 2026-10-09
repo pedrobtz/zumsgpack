@@ -20,7 +20,9 @@ msgpack_decode_prefix(
   max_depth = 256L,
   max_size = 64 * 1024^2,
   max_items = 1e+06,
-  ext_handlers = NULL
+  ext_handlers = NULL,
+  data_frame = FALSE,
+  max_cells = 1e+07
 )
 ```
 
@@ -78,6 +80,16 @@ msgpack_decode_prefix(
   `NULL`, or a list of functions of one argument, named by extension
   type from `"-128"` to `"127"`, such as
   `list("5" = function(data) ...)`. See "Extension handlers".
+
+- data_frame:
+
+  If `TRUE`, an array whose every element is a map with non-empty `str`
+  keys, none twice in one map, becomes a data frame: see "Data frames".
+
+- max_cells:
+
+  Most cells (rows times columns) a data frame may have, checked before
+  it is allocated, or `Inf`.
 
 ## Value
 

@@ -22,7 +22,8 @@ msgpack_read_seq(file, ..., each = NULL, max_size = 64 * 1024^2)
   Arguments passed on to
   [`msgpack_decode_seq()`](https://pedrobtz.github.io/zumsgpack/reference/msgpack_decode.md):
   `simplify`, `map_keys`, `ext`, `big_integers`, `duplicate_keys`,
-  `max_depth`, `max_items` and `ext_handlers`.
+  `max_depth`, `max_items`, `ext_handlers`, `data_frame` and
+  `max_cells`.
 
 - each:
 

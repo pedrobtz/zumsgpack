@@ -20,7 +20,9 @@ msgpack_decode(
   max_depth = 256L,
   max_size = 64 * 1024^2,
   max_items = 1e+06,
-  ext_handlers = NULL
+  ext_handlers = NULL,
+  data_frame = FALSE,
+  max_cells = 1e+07
 )
 
 msgpack_decode_seq(
@@ -33,7 +35,9 @@ msgpack_decode_seq(
   max_depth = 256L,
   max_size = 64 * 1024^2,
   max_items = 1e+06,
-  ext_handlers = NULL
+  ext_handlers = NULL,
+  data_frame = FALSE,
+  max_cells = 1e+07
 )
 ```
 
@@ -93,6 +97,16 @@ msgpack_decode_seq(
   `NULL`, or a list of functions of one argument, named by extension
   type from `"-128"` to `"127"`, such as
   `list("5" = function(data) ...)`. See "Extension handlers".
+
+- data_frame:
+
+  If `TRUE`, an array whose every element is a map with non-empty `str`
+  keys, none twice in one map, becomes a data frame: see "Data frames".
+
+- max_cells:
+
+  Most cells (rows times columns) a data frame may have, checked before
+  it is allocated, or `Inf`.
 
 ## Value
 
@@ -158,6 +172,19 @@ again, for MessagePack embedded in an ext, passes that call its own
 limits.
 [`as_msgpack()`](https://pedrobtz.github.io/zumsgpack/reference/as_msgpack.md)
 is the encoding half.
+
+## Data frames
+
+With `data_frame = TRUE`, an array of maps – the usual way to send a
+table, one map per row – becomes a data frame. Its columns are the union
+of the keys, in the order they are first seen; a key a row lacks is
+`NA`; and each column simplifies by the same rules as an array, so a
+column of mixed kinds is a list column. Row names are not kept, since
+the format has none. Rows that share no keys make a frame with as many
+columns as rows, quadratic in the input, so the number of cells is
+checked against `max_cells` before anything is allocated
+(`zumsgpack_cell_limit`). Arrays of any other shape decode as without
+the option, and so does an empty array.
 
 ## See also
 

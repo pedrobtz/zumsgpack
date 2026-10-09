@@ -47,3 +47,9 @@
   reads objects back to back; with `each =` it passes each one on as
   soon as it has been checked whole, in memory bounded by the largest
   object (roadmap Stage 5).
+- `data_frame = TRUE` decodes an array of records as a data frame,
+  within a `max_cells` budget checked before allocation; data frames
+  encode as an array of maps.
+  [`msgpack_annotate()`](https://pedrobtz.github.io/zumsgpack/reference/msgpack_annotate.md)
+  prints an annotated hex dump. Python’s msgpack is the conformance
+  oracle (roadmap Stage 6).
