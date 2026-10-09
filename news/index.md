@@ -40,3 +40,10 @@
   extension types, and the
   [`as_msgpack()`](https://pedrobtz.github.io/zumsgpack/reference/as_msgpack.md)
   generic teaches the encoder a class (roadmap Stage 4).
+- [`msgpack_decode_prefix()`](https://pedrobtz.github.io/zumsgpack/reference/msgpack_decode_prefix.md)
+  decodes the object a raw vector starts with and says how many bytes it
+  used.
+  [`msgpack_read_seq()`](https://pedrobtz.github.io/zumsgpack/reference/msgpack_read_seq.md)
+  reads objects back to back; with `each =` it passes each one on as
+  soon as it has been checked whole, in memory bounded by the largest
+  object (roadmap Stage 5).

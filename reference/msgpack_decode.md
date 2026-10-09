@@ -163,6 +163,8 @@ is the encoding half.
 
 [`msgpack_validate()`](https://pedrobtz.github.io/zumsgpack/reference/msgpack_validate.md),
 [`msgpack_read()`](https://pedrobtz.github.io/zumsgpack/reference/msgpack_read.md),
+[`msgpack_read_seq()`](https://pedrobtz.github.io/zumsgpack/reference/msgpack_read_seq.md),
+[`msgpack_decode_prefix()`](https://pedrobtz.github.io/zumsgpack/reference/msgpack_decode_prefix.md),
 [msgpack-values](https://pedrobtz.github.io/zumsgpack/reference/msgpack-values.md),
 [zumsgpack-conditions](https://pedrobtz.github.io/zumsgpack/reference/zumsgpack-conditions.md).
 

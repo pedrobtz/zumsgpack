@@ -42,6 +42,8 @@
 <li>
 <code><a href="../reference/msgpack_encode.html">msgpack_encode()</a></code> and <code><a href="../reference/msgpack_encode.html">msgpack_encode_seq()</a></code> write R values deterministically: the smallest integer form, <code>float 64</code> (or <code>float 32</code> when exact, with <code>floats = "shortest"</code>), one canonical NaN, <code>str</code> and <code>bin</code>, and map entries sorted by their encoded keys with no duplicates. The output buffer is zubin’s, owned by an external pointer (roadmap Stage 3).</li>
 <li>Timestamps (ext type -1) decode to <code>POSIXct</code> in UTC and <code>POSIXct</code> and <code>Date</code> encode as the smallest of the three layouts that holds the instant, nanoseconds rounded by one rule on every host. <code>ext = "keep"</code> leaves them as <code>msgpack_ext</code>. <code>ext_handlers</code> gives meaning to extension types, and the <code><a href="../reference/as_msgpack.html">as_msgpack()</a></code> generic teaches the encoder a class (roadmap Stage 4).</li>
+<li>
+<code><a href="../reference/msgpack_decode_prefix.html">msgpack_decode_prefix()</a></code> decodes the object a raw vector starts with and says how many bytes it used. <code><a href="../reference/msgpack_read_seq.html">msgpack_read_seq()</a></code> reads objects back to back; with <code>each =</code> it passes each one on as soon as it has been checked whole, in memory bounded by the largest object (roadmap Stage 5).</li>
 </ul></div>
   </main></div>
 
