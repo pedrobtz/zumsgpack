@@ -1,0 +1,57 @@
+#!/bin/sh
+# Third-party conformance (design section 15, roadmap Stage 6):
+#
+#   1. the committed fixtures equal a fresh regeneration from their pinned
+#      sources (tools/update-fixtures, which runs tools/make-fixtures.py);
+#   2. the oracle -- Python's msgpack -- agrees with zumsgpack on every
+#      object of the suite, of Python's fixtures, and of zumsgpack's own
+#      encoding of every section 7.1 row, with any difference attributed by
+#      rule (tools/conformance-baselines.tsv);
+#   3. the oracle has been seen to fail: a canary run corrupts one row and
+#      must be refused, and so must a raised and a lowered baseline.
+#
+# Needs the network, zumsgpack installed, jsonlite, and $PYTHON (default
+# python3) with msgpack at the pinned version. Run from the package root.
+set -eu
+PYTHON=${PYTHON:-python3}
+WORK=$(mktemp -d)
+trap 'rm -rf "$WORK"' EXIT
+
+echo "==> regenerating the fixtures"
+PYTHON="$PYTHON" Rscript tools/update-fixtures "$WORK/fixtures" >/dev/null
+for f in msgpack-test-suite.tsv msgpack-test-suite-LICENSE python-msgpack.tsv MANIFEST.tsv; do
+  if ! cmp -s "$WORK/fixtures/$f" "tests/testthat/fixtures/$f"; then
+    echo "FAIL: tests/testthat/fixtures/$f differs from its regeneration" >&2
+    diff "$WORK/fixtures/$f" "tests/testthat/fixtures/$f" | head -20 >&2 || true
+    exit 1
+  fi
+done
+
+echo "==> the canary: a corrupted row must be refused"
+CONFORMANCE_CANARY=1 Rscript tools/conformance.R "$WORK/canary.tsv" >/dev/null
+if "$PYTHON" -I tools/oracle.py "$WORK/canary.tsv" tools/conformance-baselines.tsv >/dev/null; then
+  echo "FAIL: the oracle accepted a corrupted row" >&2
+  exit 2
+fi
+
+Rscript tools/conformance.R "$WORK/table.tsv"
+
+echo "==> a raised baseline must be refused"
+cp tools/conformance-baselines.tsv "$WORK/raised.tsv"
+printf 'zmp-canary-rule\t1\n' >> "$WORK/raised.tsv"
+if "$PYTHON" -I tools/oracle.py "$WORK/table.tsv" "$WORK/raised.tsv" >/dev/null; then
+  echo "FAIL: the oracle accepted a baseline nothing matches" >&2
+  exit 2
+fi
+
+echo "==> a lowered baseline must be refused"
+awk -F'\t' 'BEGIN { OFS = "\t" } /^#/ || NF < 2 { print; next } { print $1, $2 - 1 }' \
+  tools/conformance-baselines.tsv > "$WORK/lowered.tsv"
+if grep -qv '^#' tools/conformance-baselines.tsv &&
+   "$PYTHON" -I tools/oracle.py "$WORK/table.tsv" "$WORK/lowered.tsv" >/dev/null; then
+  echo "FAIL: the oracle accepted a lowered baseline" >&2
+  exit 2
+fi
+
+echo "==> the oracle"
+"$PYTHON" -I tools/oracle.py "$WORK/table.tsv" tools/conformance-baselines.tsv

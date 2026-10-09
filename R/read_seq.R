@@ -24,7 +24,7 @@
 #' @param file A file path, a URL, or a connection.
 #' @param ... Arguments passed on to [msgpack_decode_seq()]: `simplify`,
 #'   `map_keys`, `ext`, `big_integers`, `duplicate_keys`, `max_depth`,
-#'   `max_items` and `ext_handlers`.
+#'   `max_items`, `ext_handlers`, `data_frame` and `max_cells`.
 #' @param each `NULL`, or a function called with each object in turn.
 #' @inheritParams msgpack_decode
 #' @return Without `each`, a list of the objects; with it, the number of
@@ -82,7 +82,7 @@ zmp_read_stream <- function(con, each, max_size, args, call, chunk = 65536L) {
       if (eof) break
       next
     }
-    res <- .Call(zmp_decode_raw, tail, opts$codes, opts$max_items, call, opts$handlers)
+    res <- .Call(zmp_decode_raw, tail, opts$codes, opts$limits, call, opts$handlers)
     if (!is.null(res[[1L]])) {
       fault <- res[[1L]]
       fault$offset <- fault$offset + offset
@@ -123,7 +123,8 @@ zmp_stream_options <- function(simplify = c("preserve", "none"),
                                ext = c("convert", "keep"),
                                big_integers = c("bigint", "double", "error"),
                                duplicate_keys = FALSE, max_depth = 256L,
-                               max_items = 1e6, ext_handlers = NULL) {
+                               max_items = 1e6, ext_handlers = NULL,
+                               data_frame = FALSE, max_cells = 1e7) {
   call <- sys.call(-1L)
   simplify <- zmp_arg_choice(simplify, "simplify", c("preserve", "none"), call)
   map_keys <- zmp_arg_choice(map_keys, "map_keys", c("auto", "map", "string"), call)
@@ -131,9 +132,11 @@ zmp_stream_options <- function(simplify = c("preserve", "none"),
   big_integers <- zmp_arg_choice(big_integers, "big_integers",
                                  c("bigint", "double", "error"), call)
   zmp_arg_flag(duplicate_keys, "duplicate_keys", call)
+  zmp_arg_flag(data_frame, "data_frame", call)
   zmp_arg_limits(max_depth, 1, max_items, call)
+  zmp_arg_limit(max_cells, "max_cells", 2^53, allow_inf = TRUE, call)
   list(codes = as.integer(c(zmp_mode[["stream"]], duplicate_keys, max_depth, simplify,
-                            map_keys, big_integers, ext)),
-       max_items = as.numeric(max_items),
+                            map_keys, big_integers, ext, data_frame)),
+       limits = c(as.numeric(max_items), as.numeric(max_cells)),
        handlers = zmp_arg_handlers(ext_handlers, call))
 }

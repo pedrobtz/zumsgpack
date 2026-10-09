@@ -25,6 +25,8 @@ typedef struct {
     const zmp_plan *plan;
     size_t next_count;
     int simplify, map_keys, big_integers, duplicate_keys;
+    int data_frame;             /* arrays of str-keyed maps as data frames */
+    double max_cells;           /* their cell budget */
     int ext_convert;            /* ext = "convert": type -1 is a POSIXct */
     SEXP *handlers;             /* 256 slots by type + 128, or NULL */
     SEXP call;

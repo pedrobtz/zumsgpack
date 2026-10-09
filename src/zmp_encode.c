@@ -606,14 +606,65 @@ void zmp_encode_converted(zmp_encoder *e, SEXP x, int depth)
 
 /* ---- the parts later stages fill ------------------------------------------------- */
 
-/* Data frames (Stage 6): refused, so a data frame never falls through to
- * the named-list path and comes out as a map of columns. */
+/* A data frame as an array of one map per row, each map's keys the column
+ * names in the deterministic order, written once and reused for every row
+ * (design section 7.1). NA is nil and the key stays; row names are not
+ * written; a list column's cells are encoded as values. depth is the
+ * array's level: rows are one below it and cells two. */
 void zmp_encode_data_frame(zmp_encoder *e, SEXP x, int depth)
 {
-    (void) x;
-    (void) depth;
-    zmp_fail_encode(e, ZMP_ERR_UNSUPPORTED_TYPE,
-                    "data frames are not encoded in this version; convert to a list");
+    R_xlen_t nc = XLENGTH(x);
+    SEXP names = PROTECT(Rf_getAttrib(x, R_NamesSymbol));
+    if (nc && (TYPEOF(names) != STRSXP || !check_names(e, names, nc)))
+        zmp_fail_encode(e, ZMP_ERR_INVALID_VALUE, "a data frame's columns need names");
+    R_xlen_t nr = 0;
+    for (R_xlen_t j = 0; j < nc; j++) {
+        SEXP col = VECTOR_ELT(x, j);
+        if (Rf_getAttrib(col, R_DimSymbol) != R_NilValue)
+            zmp_fail_encode(e, ZMP_ERR_UNSUPPORTED_TYPE,
+                            "a data frame column that is a matrix has no MessagePack form");
+        if (j == 0)
+            nr = XLENGTH(col);
+        else if (XLENGTH(col) != nr)
+            zmp_fail_encode(e, ZMP_ERR_INVALID_VALUE, "a data frame's columns differ in length");
+    }
+    if (nc == 0) {
+        /* No columns: the row count is in the row names. */
+        SEXP rn = PROTECT(Rf_getAttrib(x, R_RowNamesSymbol));
+        nr = TYPEOF(rn) == INTSXP && XLENGTH(rn) == 2 && INTEGER(rn)[0] == NA_INTEGER
+             ? (R_xlen_t) abs(INTEGER(rn)[1]) : XLENGTH(rn);
+        UNPROTECT(1);
+    }
+    zmp_check_depth(e, depth);
+    zmp_check_depth(e, depth + 1);
+
+    /* The keys, sorted and checked once. */
+    const void *vmax = vmaxget();
+    zmp_entry *keys = (zmp_entry *) R_alloc((size_t) nc + 1, sizeof(zmp_entry));
+    for (R_xlen_t j = 0; j < nc; j++) {
+        keys[j].key = (const uint8_t *) utf8_of(e, STRING_ELT(names, j), &keys[j].key_len);
+        keys[j].index = j;
+    }
+    sort_entries(keys, nc, text_cmp);
+    for (R_xlen_t j = 1; j < nc; j++)
+        if (text_cmp(&keys[j - 1], &keys[j]) == 0)
+            zmp_fail_encode(e, ZMP_ERR_DUPLICATE_KEY, "two data frame columns have the same name");
+
+    zmp_put_array_head(e, nr);
+    for (R_xlen_t i = 0; i < nr; i++) {
+        put_map_head(e, nc);
+        for (R_xlen_t k = 0; k < nc; k++) {
+            put_str_head(e, keys[k].key_len);
+            zmp_put(e, keys[k].key, keys[k].key_len);
+            SEXP col = VECTOR_ELT(x, keys[k].index);
+            if (TYPEOF(col) == VECSXP)
+                zmp_encode_value(e, VECTOR_ELT(col, i), depth + 2);
+            else
+                zmp_encode_element(e, col, i, depth + 2);
+        }
+    }
+    vmaxset(vmax);
+    UNPROTECT(1);
 }
 
 /* ---- entry point ------------------------------------------------------------------ */

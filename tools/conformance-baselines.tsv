@@ -1,0 +1,4 @@
+# rule <TAB> number of differences it must attribute, exactly.
+# Each rule is defined, with its reason, in tools/oracle.py; it attributes
+# by what the difference is, never by a list of objects.
+python-refuses-reserved-ext	1

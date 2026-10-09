@@ -504,18 +504,26 @@ is `R_alloc()`ed or `PROTECT`ed. The check phase allocates no R object.
 ## 15. Testing
 
 - **Fixtures from other implementations, never by hand.**
-  `tools/update-fixtures` fetches, at pinned revisions: the
-  `msgpack/msgpack-c` test vectors; `kawanet/msgpack-test-suite`, a
-  YAML corpus of value-to-bytes cases covering every format including
-  the timestamp extension; and a set of files written by Python's
-  `msgpack` at a pinned version through `tools/make-fixtures.py`. A
-  manifest records each file's source and SHA-256, and
-  `tools/run-conformance` checks the fixtures against their sources and
-  runs the suites against rule-attributed baselines, as `zucbor` does
-  with `cbor/test-vectors`.
-- **The oracle is Python's `msgpack`** through `reticulate`, in the
-  conformance job only: every fixture decoded by both and compared;
-  every R value of §7.1 encoded by zumsgpack and unpacked by Python.
+  `tools/update-fixtures` fetches, at pinned revisions:
+  `kawanet/msgpack-test-suite`, a corpus of value-to-bytes cases covering
+  every format including the timestamp extension (read from upstream's
+  own JSON build); and a set of objects written by Python's `msgpack` at
+  a pinned version through `tools/make-fixtures.py`, each with Python's
+  own decoding of it. A manifest records each file's source and SHA-256,
+  and `tools/run-conformance` checks the fixtures against their sources.
+  (The RFC also named `msgpack/msgpack-c`'s test vectors; checked at
+  roadmap Stage 6, its tests are C++ code, not data, so there is nothing
+  to fetch.)
+- **The oracle is Python's `msgpack`,** in the conformance job only:
+  every object of the suite and of Python's fixtures, and zumsgpack's
+  encoding of every R value of §7.1, decoded by both and compared. The
+  two sides meet in a canonical text form (`tools/canon.py`,
+  `tests/testthat/helper-canon.R`) rather than through `reticulate`, so
+  the package needs no Python-facing `Suggests` and the R tests compare
+  against Python's recorded decodings without running Python. Any
+  difference must be attributed by a named rule with an exact baseline
+  (`tools/conformance-baselines.tsv`); the runner is seen to fail on a
+  corrupted row and on a raised and a lowered baseline.
 - **Round trip as a property**: `zucbor`'s `test-roundtrip.R` with the
   format changed; 300 generated values, each encoded twice and decoded
   back; and the stream invariants over every fixture fed in blocks of
@@ -596,7 +604,8 @@ Reasons where they are not in the section cited:
    public corpus but is a YAML file; reading it needs `zuyaml` in
    `Suggests` for the conformance job, or a one-time conversion to JSON
    in `tools/`. Recommended: convert once in `tools/`, so the test suite
-   needs no sibling.
+   needs no sibling. *Closed at roadmap Stage 1: upstream ships its own
+   JSON build, which `tools/update-fixtures` reads and writes as a TSV.*
 
 ## 19. Roadmap
 

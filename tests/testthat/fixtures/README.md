@@ -8,9 +8,15 @@ was fetched. The tests read only these files and never use the network.
 | File | Source | Pinned at | Licence |
 |---|---|---|---|
 | `msgpack-test-suite.tsv` | [kawanet/msgpack-test-suite](https://github.com/kawanet/msgpack-test-suite) `dist/msgpack-test-suite.json`: 85 cases, 233 encodings, one row per encoding | commit `e04f6ede` | MIT, © 2017–2018 Yusuke Kawasaki; text in `msgpack-test-suite-LICENSE` |
+| `python-msgpack.tsv` | 91 objects written by Python's [msgpack](https://pypi.org/project/msgpack/) through `tools/make-fixtures.py`: every integer boundary, floats in both widths, str, bin, array and map heads, exts and timestamps, records, and a Fluentd forward-mode stream | msgpack 1.1.1 | the objects are this package's; the library is Apache-2.0 |
 
 In `msgpack-test-suite.tsv`, `value` is the case's value as R source text
 (JSON numbers as doubles, strings as character, arrays and objects as
 lists; a `bignum` case keeps upstream's decimal string), and `hex` is one
 encoding of it. `form` numbers a case's encodings in upstream's order, which
 is not always the smallest form first.
+
+In `python-msgpack.tsv`, `canon` is Python's own decoding of `hex` in the
+canonical text form of `tools/canon.py` (and `helper-canon.R`, which
+writes the same form in R), so the R tests compare against another
+implementation without running it.

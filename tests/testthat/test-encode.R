@@ -186,10 +186,6 @@ test_that("values with no MessagePack form are refused", {
   expect_error(msgpack_encode(list(a = list(b = 1i))), class = "zumsgpack_unsupported_type")
 })
 
-test_that("data frames are refused until their stage", {
-  expect_error(msgpack_encode(data.frame(a = 1)), class = "zumsgpack_unsupported_type")
-})
-
 test_that("the encoder never writes what the decoder refuses at the same max_depth", {
   leaves <- list(1L, msgpack_ext(5, raw(1)), list(1L), c(a = 1L), msgpack_map(list(1L), list(2L)),
                  msgpack_ext(5, raw(20)))
