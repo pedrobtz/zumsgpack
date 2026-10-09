@@ -83,7 +83,7 @@ jobs:
         run: python -m pip install msgpack==1.1.1
       - name: Install zumsgpack
         run: R CMD INSTALL .
+      # The interpreter by its absolute path: run from R, a bare `python`
+      # can resolve to another one, without msgpack.
       - name: Run
-        env:
-          PYTHON: python
-        run: tools/run-conformance
+        run: PYTHON="$pythonLocation/bin/python" tools/run-conformance
