@@ -21,8 +21,11 @@ LinkingTo:
     zubin,
     zufast (>= 0.1.0)
 Suggests: 
+    knitr,
+    rmarkdown,
     testthat (>= 3.0.0),
     withr
+VignetteBuilder: knitr
 Remotes: 
     pedrobtz/zufast,
     pedrobtz/zubin

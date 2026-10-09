@@ -2,3 +2,40 @@ url: https://pedrobtz.github.io/zumsgpack/
 template:
   bootstrap: 5
 
+# A release version (0.1.0) builds the site at the root; a development
+# version (0.1.0.9000) builds it into dev/, leaving the released docs at
+# the root.
+development:
+  mode: auto
+
+reference:
+  - title: Decode
+    contents:
+      - msgpack_decode
+      - msgpack_decode_prefix
+      - msgpack_read
+      - msgpack_read_seq
+      - msgpack_validate
+      - msgpack_annotate
+  - title: Encode
+    contents:
+      - msgpack_encode
+  - title: Classes of your own
+    contents:
+      - as_msgpack
+  - title: Values without an R type
+    contents:
+      - msgpack-values
+  - title: Errors and build information
+    contents:
+      - zumsgpack-conditions
+      - zumsgpack_info
+      - zumsgpack-package
+
+articles:
+  - title: Using zumsgpack
+    navbar: ~
+    contents:
+      - articles/zumsgpack
+      - articles/examples
+      - untrusted
