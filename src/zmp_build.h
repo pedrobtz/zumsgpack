@@ -33,7 +33,6 @@ SEXP zmp_build_value(zmp_builder *b, int *kind);
 SEXP zmp_build_ext(zmp_builder *b, int type, const uint8_t *p, size_t n, size_t at, int *kind);
 SEXP zmp_mkchar(zmp_builder *b, const char *s, size_t n, size_t at);
 void zmp_fail_build(zmp_builder *b, const char *status, const char *detail, size_t at);
-void zmp_raise(const zmp_fault *f, SEXP call);
 void zmp_format_double(double d, char *buf);     /* buf >= 32 bytes */
 
 #endif

@@ -388,7 +388,12 @@ zumsgpack always produces:
    "shortest"` writes `float 32` when the value survives the round
    trip exactly, as `zucbor` does for CBOR; it is opt-in because several
    decoders (older Ruby, some Go configurations) widen `float 32`
-   through `float`, which changes the value as seen by their users;
+   through `float`, which changes the value as seen by their users.
+   Every `NaN` is written as one canonical quiet NaN (`cb 7f f8 00 00 00
+   00 00 00`, or `ca 7f c0 00 00` under `"shortest"`): R's `NaN` is
+   `0/0`, whose bits differ between x86 and ARM, and bytes must not
+   depend on the host (roadmap Stage 3). `NA_real_` is `nil` (§7.1), not
+   a float;
 3. `str` for text and `bin` for bytes, never the compatibility `raw`;
 4. map entries sorted by the bytewise lexicographic order of their
    encoded keys, as RFC 8949 §4.2.1 sorts CBOR maps; no duplicate keys;

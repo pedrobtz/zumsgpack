@@ -424,7 +424,7 @@ chunks, the odd-map guard, tag-content rules, half floats, simple values,
 
 ## Stage 3 — The encoder on `zubin`'s buffer · M
 
-**Status:** not started.
+**Status:** complete.
 
 **Do**
 
@@ -481,6 +481,42 @@ chunks, the odd-map guard, tag-content rules, half floats, simple values,
   container kind.
 - `gctorture(TRUE)` and `rchk` clean; an error from inside the encoder
   (unsupported type deep in a map) leaks no buffer under ASan.
+
+**What actually happened**
+
+- **NaN is canonical, which the design did not say.** §8 lists the rules
+  that make output byte-identical across platforms, but R's `NaN` is
+  `0/0`, whose bits differ by host: x86's default NaN has the sign bit
+  set, ARM's does not. Writing a NaN's own bits would have made the
+  cross-platform fixture depend on the CI runner. Every NaN is written as
+  `cb 7f f8 00 …` (`ca 7f c0 00 00` under `floats = "shortest"`), and §8
+  rule 2 says so now. `NA_real_` is not a float: it is `nil`, as §7.1
+  already said, so no NaN payload needs keeping on encode; the decoder
+  still keeps every payload it reads.
+- **R's parser struck again.** The test for a double `float 32` cannot
+  hold used the literal `1e300`, which R on macOS arm64 reads one ulp
+  away from the nearest double (`…75a0`, not `…759c`). The encoder wrote
+  exactly the bits it was given; the test and the fixture value now build
+  that double from its bits, as zucbor's Stage 3 learnt to. Had the
+  fixture kept the literal, it would have failed on every x86 runner.
+- **The buffer is zubin's, so there is no measuring pass and no
+  hand-written owner.** The output and each non-`str` key are a
+  `zb_buf` from `zb_r_buf_new()`; zubin's big-endian puts write every
+  field. zucbor's per-depth entry pools are gone: each map `R_alloc()`s
+  its entries inside its own `vmax` mark, so no pool can outlive the map
+  that made it, which is the use after free zucbor's Stage 10 found.
+- **The order of `str` keys needs no encoding.** A `str` head grows with
+  the length (`0xa0 + n`, then `0xd9`, `0xda`, `0xdb`), so the bytewise
+  order of encoded `str` keys is length, then bytes, exactly as in CBOR.
+- **Timestamps and data frames are refused until their stages,** as
+  planned: `POSIXct`, `Date` and `data.frame` are
+  `zumsgpack_unsupported_type`, so a data frame never falls through to
+  the named-list path.
+- The round-trip property holds over 300 generated values (including
+  exts with random types and payloads), every suite case re-encodes to
+  one of its listed encodings (numbers aside, whose whole-valued float
+  forms come back as integers, §7.2), and the cross-platform fixture is
+  1,094 bytes.
 
 ---
 

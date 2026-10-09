@@ -17,7 +17,7 @@
 #'
 #' MessagePack defines no canonical form, so there is no `deterministic`
 #' argument: zumsgpack's encoder follows rules of its own (see
-#' `msgpack_encode()`), which a decoder is not entitled to expect.
+#' [msgpack_encode()]), which a decoder is not entitled to expect.
 #'
 #' @param x A raw vector.
 #' @param sequence If `TRUE`, `x` is zero or more objects back to back; if

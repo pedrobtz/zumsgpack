@@ -112,3 +112,33 @@ json_shape <- function(x) {
   names(out) <- nm
   out
 }
+
+# msgpack_encode(x) is exactly these bytes.
+expect_msgpack <- function(x, hex, ...) {
+  expect_identical(raw_hex(msgpack_encode(x, ...)), raw_hex(hex_raw(hex)), info = hex)
+}
+
+# A value exercising every Stage 3 encoder path, for the cross-platform
+# fixture (test-encode.R). Built at run time: -0 and the float bit patterns
+# must not pass through R's parser or byte-code compiler.
+mixed_value <- function() {
+  list(
+    ints = c(0L, 127L, 128L, 255L, 256L, 65535L, 65536L, -1L, -32L, -33L, -128L,
+             -129L, -32768L, -32769L, .Machine$integer.max, -.Machine$integer.max, NA),
+    doubles = c(0, neg_zero(), 1.5, f64("3ff199999999999a"), 2^31, 2^32, 2^53 + 2,
+                2^64 - 2048, -2^63, 2^64, -2^63 - 2048, f64("7e37e43c8800759c"), NaN, Inf, -Inf, NA),
+    text = c("", "a", "ü水\U00010151", strrep("x", 31), strrep("y", 32),
+             strrep("z", 256), NA),
+    raw = as.raw(0:40),
+    lgl = c(TRUE, FALSE, NA),
+    fac = factor(c("lo", "hi", NA, "lo")),
+    big = msgpack_bigint(c("18446744073709551615", "-9223372036854775808", "1", NA)),
+    map = msgpack_map(list(1L, "k", as.raw(1), -1L, list(1L, 2L)),
+                      list(TRUE, NULL, "bin key", 1.5, "array key")),
+    ext = list(msgpack_ext(1, as.raw(1)), msgpack_ext(2, raw(2)), msgpack_ext(-2, raw(3)),
+               msgpack_ext(127, raw(16)), msgpack_ext(-128, raw(17)), msgpack_ext(5, raw(300))),
+    nested = list(list(list(I(1L), list())), structure(list(), names = character())),
+    sixteen = as.list(1:16),
+    zz = I("boxed"), aa = c(b = 1L, a = 2L)
+  )
+}

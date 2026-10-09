@@ -26,9 +26,14 @@ SEXP zmp_head_table(void);
 SEXP zmp_check_raw(SEXP x, SEXP mode, SEXP duplicate_keys, SEXP max_depth,
                    SEXP max_items);
 SEXP zmp_decode_raw(SEXP x, SEXP opts, SEXP max_items, SEXP call);
+SEXP zmp_encode_raw(SEXP x, SEXP opts, SEXP call, SEXP ns);
 
 /* ---- zmp_cond.c ------------------------------------------------------------- */
 
 SEXP zmp_fault_sexp(const zmp_fault *fault);
+
+/* Raises a fault through R's zmp_raise_fault(), with the user's call
+ * (zmp_build.c). Does not return. */
+void zmp_raise(const zmp_fault *f, SEXP call);
 
 #endif

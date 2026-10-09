@@ -57,7 +57,7 @@ key is compared by its encoded bytes.
 
 MessagePack defines no canonical form, so there is no \code{deterministic}
 argument: zumsgpack's encoder follows rules of its own (see
-\code{msgpack_encode()}), which a decoder is not entitled to expect.
+\code{\link[=msgpack_encode]{msgpack_encode()}}), which a decoder is not entitled to expect.
 }
 \examples{
 msgpack_validate(as.raw(c(0x93, 0x01, 0x02, 0x03)))   # [1, 2, 3]
