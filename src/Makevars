@@ -10,6 +10,7 @@ OBJECTS = \
 	init.o \
 	zmp_build.o \
 	zmp_cond.o \
+	zmp_encode.o \
 	zmp_head.o \
 	zmp_info.o \
 	zmp_status.o \

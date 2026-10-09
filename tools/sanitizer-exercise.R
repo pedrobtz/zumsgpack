@@ -36,4 +36,19 @@ for (x in seeds) {
     }
   }
 }
-cat(sprintf("==> %d checks and %d decodes over %d seeds\n", n, decoded, length(seeds)))
+
+# Stage 3: every decoded seed encoded again under both float options and a
+# tight depth, faults included; and encoder faults raised from deep inside
+# maps, whose key buffers must be freed by their owners.
+encoded <- 0L
+for (x in seeds) {
+  v <- tryCatch(msgpack_decode(x, duplicate_keys = TRUE), zumsgpack_error = function(e) NULL)
+  for (fl in c("double", "shortest")) for (d in c(256L, 2L)) {
+    tryCatch(msgpack_encode(v, floats = fl, max_depth = d), zumsgpack_error = function(e) NULL)
+    encoded <- encoded + 1L
+  }
+}
+bad <- msgpack_map(list(list(1L, 2L), "b", msgpack_ext(1, raw(3))), list(1L, list(x = 1i), 2L))
+for (i in 1:200) tryCatch(msgpack_encode(bad), zumsgpack_error = function(e) NULL)
+cat(sprintf("==> %d checks, %d decodes and %d encodes over %d seeds\n",
+            n, decoded, encoded, length(seeds)))

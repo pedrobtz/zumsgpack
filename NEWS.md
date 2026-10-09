@@ -14,3 +14,9 @@
   exts as `msgpack_ext`, and integers beyond 2^53 by `big_integers`.
   `msgpack_map()`, `msgpack_ext()` and `msgpack_bigint()` construct the
   values R has no type for (roadmap Stage 2).
+* `msgpack_encode()` and `msgpack_encode_seq()` write R values
+  deterministically: the smallest integer form, `float 64` (or `float 32`
+  when exact, with `floats = "shortest"`), one canonical NaN, `str` and
+  `bin`, and map entries sorted by their encoded keys with no duplicates.
+  The output buffer is zubin's, owned by an external pointer (roadmap
+  Stage 3).
