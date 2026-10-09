@@ -50,5 +50,23 @@ for (x in seeds) {
 }
 bad <- msgpack_map(list(list(1L, 2L), "b", msgpack_ext(1, raw(3))), list(1L, list(x = 1i), 2L))
 for (i in 1:200) tryCatch(msgpack_encode(bad), zumsgpack_error = function(e) NULL)
-cat(sprintf("==> %d checks, %d decodes and %d encodes over %d seeds\n",
+
+# Stage 4: handlers on every type the seeds hold, one of which errors, the
+# timestamp conversion both ways, and as_msgpack() methods, one of which
+# errors from inside a map key.
+h <- lapply(-128:127, function(t) if (t == 5L) function(d) stop("no") else function(d) length(d))
+names(h) <- as.character(-128:127)
+for (x in seeds) {
+  tryCatch(msgpack_decode(x, ext_handlers = h), zumsgpack_error = function(e) NULL)
+  tryCatch(msgpack_decode(x, ext = "keep"), zumsgpack_error = function(e) NULL)
+}
+registerS3method("as_msgpack", "zmp_ex", function(x, ...) msgpack_ext(3, as.raw(unclass(x))))
+registerS3method("as_msgpack", "zmp_ex_bad", function(x, ...) stop("no"))
+times <- structure(c(0, -1.5, 2^34, 1e9 + 0.123456, NA), class = c("POSIXct", "POSIXt"))
+for (i in 1:200) {
+  msgpack_decode(msgpack_encode(list(times, as.Date("2024-02-29"), structure(1:3, class = "zmp_ex"))))
+  tryCatch(msgpack_encode(msgpack_map(list(structure(1, class = "zmp_ex_bad")), list(1))),
+           error = function(e) NULL)
+}
+cat(sprintf("==> %d checks, %d decodes and %d encodes over %d seeds; handlers and timestamps\n",
             n, decoded, encoded, length(seeds)))

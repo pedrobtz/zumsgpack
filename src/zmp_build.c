@@ -138,18 +138,6 @@ static SEXP read_bytes(const uint8_t *p, size_t n)
     return out;
 }
 
-/* An extension object as msgpack_ext: list(type = <integer>, data = <raw>). */
-static SEXP make_ext(int type, const uint8_t *p, size_t n)
-{
-    const char *names[] = {"type", "data", ""};
-    SEXP out = PROTECT(Rf_mkNamed(VECSXP, names));
-    SET_VECTOR_ELT(out, 0, Rf_ScalarInteger(type));
-    SET_VECTOR_ELT(out, 1, read_bytes(p, n));
-    set_class(out, "msgpack_ext");
-    UNPROTECT(1);
-    return out;
-}
-
 /* ---- arrays ------------------------------------------------------------------ */
 
 /* Marks a one-element array that simplified to a vector with I(), so that
@@ -717,24 +705,24 @@ SEXP zmp_build_value(zmp_builder *b, int *kind)
     }
 }
 
-/* An extension object (design section 6.3). Stage 2: always msgpack_ext. */
-SEXP zmp_build_ext(zmp_builder *b, int type, const uint8_t *p, size_t n, size_t at, int *kind)
-{
-    (void) b;
-    (void) at;
-    *kind = ZMP_KIND_OTHER;
-    return make_ext(type, p, n);
-}
-
 /* ---- entry point --------------------------------------------------------------- */
 
 /* opts: mode (0 one object, 1 a sequence, 2 a prefix), duplicate_keys,
- * max_depth, simplify, map_keys, big_integers (integer codes, validated in
- * R). Returns list(fault, value, consumed): a check-phase fault is returned
- * for R to raise with the user's call; a build-phase one is raised here. */
-SEXP zmp_decode_raw(SEXP x, SEXP opts, SEXP max_items, SEXP call)
+ * max_depth, simplify, map_keys, big_integers, ext (integer codes,
+ * validated in R). handlers: NULL, or list(types, functions, namespace)
+ * from R. Returns list(fault, value, consumed): a check-phase fault is
+ * returned for R to raise with the user's call; a build-phase one is
+ * raised here. */
+SEXP zmp_decode_raw(SEXP x, SEXP opts, SEXP max_items, SEXP call, SEXP handlers)
 {
-    if (TYPEOF(x) != RAWSXP || TYPEOF(opts) != INTSXP || XLENGTH(opts) != 6)
+    if (TYPEOF(x) != RAWSXP || TYPEOF(opts) != INTSXP || XLENGTH(opts) != 7)
+        Rf_error("zmp_decode_raw: arguments must be validated in R");
+    if (handlers != R_NilValue
+        && (TYPEOF(handlers) != VECSXP || XLENGTH(handlers) != 3
+            || TYPEOF(VECTOR_ELT(handlers, 0)) != INTSXP
+            || TYPEOF(VECTOR_ELT(handlers, 1)) != VECSXP
+            || XLENGTH(VECTOR_ELT(handlers, 0)) != XLENGTH(VECTOR_ELT(handlers, 1))
+            || TYPEOF(VECTOR_ELT(handlers, 2)) != ENVSXP))
         Rf_error("zmp_decode_raw: arguments must be validated in R");
     const int *o = INTEGER(opts);
     zmp_check_opts opt;
@@ -768,7 +756,23 @@ SEXP zmp_decode_raw(SEXP x, SEXP opts, SEXP max_items, SEXP call)
     b.simplify = o[3];
     b.map_keys = o[4];
     b.big_integers = o[5];
+    b.ext_convert = o[6] == 0;
     b.call = call;
+    if (handlers != R_NilValue) {
+        /* A slot per type; the functions stay protected through handlers,
+         * which the caller holds. */
+        const int *types = INTEGER(VECTOR_ELT(handlers, 0));
+        SEXP fns = VECTOR_ELT(handlers, 1);
+        b.handlers = (SEXP *) R_alloc(256, sizeof(SEXP));
+        for (int k = 0; k < 256; k++)
+            b.handlers[k] = R_NilValue;
+        for (R_xlen_t k = 0; k < XLENGTH(fns); k++) {
+            if (types[k] < -128 || types[k] > 127)
+                Rf_error("zmp_decode_raw: arguments must be validated in R");
+            b.handlers[types[k] + 128] = VECTOR_ELT(fns, k);
+        }
+        b.ns = VECTOR_ELT(handlers, 2);
+    }
 
     int kind;
     if (opt.mode != ZMP_MODE_SEQ) {

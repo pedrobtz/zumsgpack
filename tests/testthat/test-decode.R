@@ -211,7 +211,7 @@ test_that("a sequence decodes to a list, one element per object", {
 
 test_that("every suite case decodes to its value, in every encoding", {
   s <- suite()
-  s <- s[!s$type %in% c("timestamp"), ]   # Stage 4
+  s <- s[!s$type %in% c("timestamp"), ]   # test-timestamp.R
   got <- lapply(s$hex, function(h) msgpack_decode(hex_raw(h)))
   want <- lapply(seq_len(nrow(s)), function(i) {
     v <- eval(str2lang(s$value[i]))

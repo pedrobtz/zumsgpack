@@ -186,9 +186,7 @@ test_that("values with no MessagePack form are refused", {
   expect_error(msgpack_encode(list(a = list(b = 1i))), class = "zumsgpack_unsupported_type")
 })
 
-test_that("POSIXct, Date and data frames are refused until their stages", {
-  expect_error(msgpack_encode(Sys.time()), class = "zumsgpack_unsupported_type")
-  expect_error(msgpack_encode(as.Date("2026-01-01")), class = "zumsgpack_unsupported_type")
+test_that("data frames are refused until their stage", {
   expect_error(msgpack_encode(data.frame(a = 1)), class = "zumsgpack_unsupported_type")
 })
 

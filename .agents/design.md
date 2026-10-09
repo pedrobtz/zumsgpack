@@ -397,7 +397,15 @@ zumsgpack always produces:
 3. `str` for text and `bin` for bytes, never the compatibility `raw`;
 4. map entries sorted by the bytewise lexicographic order of their
    encoded keys, as RFC 8949 §4.2.1 sorts CBOR maps; no duplicate keys;
-5. the smallest timestamp encoding that holds the instant exactly.
+5. the smallest timestamp encoding that holds the instant exactly. A
+   `POSIXct` is first fixed to whole nanoseconds by one rule: the seconds
+   by `floor()`, the fraction times 10^9 rounded to the nearest (half away
+   from zero), a carry into the seconds at 10^9 (roadmap Stage 4). Each of
+   those is a correctly rounded IEEE operation, so every host computes
+   the same fields. Then `timestamp 32` when there are no nanoseconds and
+   the seconds are within 0 .. 2^32 - 1, `timestamp 64` when the seconds
+   are within 0 .. 2^34 - 1, and `timestamp 96` otherwise, nanoseconds
+   never negative (−1.5 s is −2 s and 500,000,000 ns).
 
 These are zumsgpack's rules, not the format's, and the documentation
 says so; a decoder is not entitled to expect them. They make

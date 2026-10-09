@@ -4,7 +4,7 @@ test_that("every suite encoding in section 8 form is a fixed point", {
   # are the exception the design states: a float 32 input re-encodes as
   # float 64 (section 7.2), and a whole float as an integer.
   s <- suite()
-  s <- s[s$type != "timestamp", ]                # Stage 4
+  s <- s[s$type != "timestamp", ]                # test-timestamp.R
   cases <- split(s, paste(s$group, s$case))
   missing <- character()
   for (cs in cases) {
