@@ -85,7 +85,8 @@
 #' @inheritParams msgpack_validate
 #' @return The decoded value; for `msgpack_decode_seq()`, a list with one
 #'   element per object.
-#' @seealso [msgpack_validate()], [msgpack_read()], [msgpack-values],
+#' @seealso [msgpack_validate()], [msgpack_read()], [msgpack_read_seq()],
+#'   [msgpack_decode_prefix()], [msgpack-values],
 #'   [zumsgpack-conditions].
 #' @export
 #' @examples

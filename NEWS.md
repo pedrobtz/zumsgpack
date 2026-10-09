@@ -26,3 +26,7 @@
   leaves them as `msgpack_ext`. `ext_handlers` gives meaning to extension
   types, and the `as_msgpack()` generic teaches the encoder a class
   (roadmap Stage 4).
+* `msgpack_decode_prefix()` decodes the object a raw vector starts with and
+  says how many bytes it used. `msgpack_read_seq()` reads objects back to
+  back; with `each =` it passes each one on as soon as it has been checked
+  whole, in memory bounded by the largest object (roadmap Stage 5).

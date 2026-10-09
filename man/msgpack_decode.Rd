@@ -155,6 +155,7 @@ msgpack_decode(ts)
 msgpack_decode(ts, ext = "keep")
 }
 \seealso{
-\code{\link[=msgpack_validate]{msgpack_validate()}}, \code{\link[=msgpack_read]{msgpack_read()}}, \link{msgpack-values},
+\code{\link[=msgpack_validate]{msgpack_validate()}}, \code{\link[=msgpack_read]{msgpack_read()}}, \code{\link[=msgpack_read_seq]{msgpack_read_seq()}},
+\code{\link[=msgpack_decode_prefix]{msgpack_decode_prefix()}}, \link{msgpack-values},
 \link{zumsgpack-conditions}.
 }

@@ -707,7 +707,7 @@ SEXP zmp_build_value(zmp_builder *b, int *kind)
 
 /* ---- entry point --------------------------------------------------------------- */
 
-/* opts: mode (0 one object, 1 a sequence, 2 a prefix), duplicate_keys,
+/* opts: mode (0 one object, 1 a sequence, 2 a prefix, 3 a stream), duplicate_keys,
  * max_depth, simplify, map_keys, big_integers, ext (integer codes,
  * validated in R). handlers: NULL, or list(types, functions, namespace)
  * from R. Returns list(fault, value, consumed): a check-phase fault is
@@ -726,7 +726,7 @@ SEXP zmp_decode_raw(SEXP x, SEXP opts, SEXP max_items, SEXP call, SEXP handlers)
         Rf_error("zmp_decode_raw: arguments must be validated in R");
     const int *o = INTEGER(opts);
     zmp_check_opts opt;
-    if (o[0] < ZMP_MODE_ONE || o[0] > ZMP_MODE_PREFIX)
+    if (o[0] < ZMP_MODE_ONE || o[0] > ZMP_MODE_STREAM)
         Rf_error("zmp_decode_raw: arguments must be validated in R");
     opt.mode = o[0];
     opt.duplicate_keys = o[1];
@@ -775,9 +775,12 @@ SEXP zmp_decode_raw(SEXP x, SEXP opts, SEXP max_items, SEXP call, SEXP handlers)
     }
 
     int kind;
-    if (opt.mode != ZMP_MODE_SEQ) {
+    if (opt.mode == ZMP_MODE_ONE || opt.mode == ZMP_MODE_PREFIX) {
         SET_VECTOR_ELT(out, 1, zmp_build_value(&b, &kind));
     } else {
+        /* A sequence, or a stream's complete objects: in a stream the check
+         * stopped, without a fault, before an object the input ends inside,
+         * and plan.consumed says where. */
         SEXP items = PROTECT(Rf_allocVector(VECSXP, (R_xlen_t) plan.n_items));
         SET_VECTOR_ELT(out, 1, items);
         for (size_t i = 0; i < plan.n_items; i++)
