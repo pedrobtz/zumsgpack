@@ -25,6 +25,7 @@ SEXP zmp_status_names(void);
 SEXP zmp_head_table(void);
 SEXP zmp_check_raw(SEXP x, SEXP mode, SEXP duplicate_keys, SEXP max_depth,
                    SEXP max_items);
+SEXP zmp_decode_raw(SEXP x, SEXP opts, SEXP max_items, SEXP call);
 
 /* ---- zmp_cond.c ------------------------------------------------------------- */
 

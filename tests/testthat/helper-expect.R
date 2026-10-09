@@ -59,3 +59,56 @@ suite <- function() {
 skip_heavy <- function() {
   skip_if(nzchar(Sys.getenv("ZUMSGPACK_SKIP_HEAVY")), "ZUMSGPACK_SKIP_HEAVY is set")
 }
+
+# A double from its IEEE 754 bits, big-endian hex. R's parser does not round
+# every decimal literal correctly where long double is only a double (macOS
+# arm64, zucbor Stage 3), so a float a test compares exactly is built from
+# its bits, or from arithmetic that is exact.
+f64 <- function(hex) readBin(hex_raw(hex), "double", size = 8L, endian = "big")
+f32 <- function(hex) readBin(hex_raw(hex), "double", size = 4L, endian = "big")
+
+# R's byte-code compiler folds the literal -0 to +0 (zucbor Stage 4), so a
+# test that needs negative zero makes it at run time.
+neg_zero <- function() {
+  z <- 0
+  -z
+}
+
+dec <- function(hex, ...) msgpack_decode(hex_raw(hex), ...)
+
+# A decoded value with every I() mark removed, recursively, for comparing
+# structure where the one-element marking is beside the point.
+un_i <- function(x) {
+  if (inherits(x, "AsIs")) class(x) <- setdiff(class(x), "AsIs")
+  if (length(class(x)) == 0L || identical(class(x), character())) attr(x, "class") <- NULL
+  if (is.list(x) && !is.object(x)) {
+    nm <- names(x)
+    x <- lapply(x, un_i)
+    names(x) <- nm
+  }
+  x
+}
+
+# A suite case's value (JSON-shaped: numbers double, arrays and objects
+# lists) next to a decoded one, both flattened to the same shape: atomic
+# vectors become lists of their elements, with NA as NULL, and numbers are
+# compared as doubles.
+json_shape <- function(x) {
+  # A one-element array decodes as an I() vector: an array, not a scalar.
+  if (inherits(x, "AsIs")) return(lapply(as.list(un_i(x)), json_shape))
+  x <- un_i(x)
+  if (is.null(x)) return(NULL)
+  if (inherits(x, "msgpack_ext")) return(list(ext = unclass(x)$type, data = unclass(x)$data))
+  if (is.raw(x)) return(x)
+  if (is.atomic(x) && length(x) == 1L && is.null(names(x))) {
+    if (is.na(x)) return(NULL)
+    return(if (is.numeric(x)) as.numeric(x) else x)
+  }
+  if (is.atomic(x)) x <- as.list(x)
+  # jsonlite reads {} as an unnamed list(), the same as [].
+  if (length(x) == 0L) return(list())
+  nm <- names(x)
+  out <- lapply(x, json_shape)
+  names(out) <- nm
+  out
+}

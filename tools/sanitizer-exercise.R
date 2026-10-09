@@ -18,4 +18,22 @@ for (x in seeds) {
     n <- n + 2L
   }
 }
-cat(sprintf("==> %d checks over %d seeds\n", n, length(seeds)))
+
+# Stage 2: every seed decoded under every option set, faults included.
+decoded <- 0L
+options <- expand.grid(simplify = c("preserve", "none"),
+                       map_keys = c("auto", "map", "string"),
+                       big_integers = c("bigint", "double", "error"),
+                       duplicate_keys = c(FALSE, TRUE), stringsAsFactors = FALSE)
+for (x in seeds) {
+  for (i in seq_len(nrow(options))) {
+    o <- options[i, ]
+    for (f in list(msgpack_decode, msgpack_decode_seq)) {
+      r <- tryCatch(f(x, simplify = o$simplify, map_keys = o$map_keys,
+                      big_integers = o$big_integers, duplicate_keys = o$duplicate_keys),
+                    zumsgpack_error = function(e) NULL)
+      decoded <- decoded + 1L
+    }
+  }
+}
+cat(sprintf("==> %d checks and %d decodes over %d seeds\n", n, decoded, length(seeds)))
