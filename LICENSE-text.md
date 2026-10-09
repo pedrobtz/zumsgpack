@@ -1,4 +1,4 @@
 # License
 
     YEAR: 2026
-    COPYRIGHT HOLDER: zumsgpack authors
+    COPYRIGHT HOLDER: Pedro Baltazar

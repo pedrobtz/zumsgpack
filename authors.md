@@ -2,18 +2,21 @@
 
 ## Authors
 
-- **First Last**. Author, maintainer.
+- **Pedro Baltazar**. Author, maintainer, copyright holder.
 
 ## Citation
 
-Last F (2026). *zumsgpack: What the Package Does (One Line, Title
-Case)*. R package version 0.0.0.9000,
-<https://pedrobtz.github.io/zumsgpack/>.
+Source:
+[`DESCRIPTION`](https://github.com/pedrobtz/zumsgpack/blob/main/DESCRIPTION)
+
+Baltazar P (2026). *zumsgpack: Deterministic and Secure 'MessagePack'
+Encoding and Decoding*. R package version 0.0.0.9000,
+<https://github.com/pedrobtz/zumsgpack>.
 
     @Manual{,
-      title = {zumsgpack: What the Package Does (One Line, Title Case)},
-      author = {First Last},
+      title = {zumsgpack: Deterministic and Secure 'MessagePack' Encoding and Decoding},
+      author = {Pedro Baltazar},
       year = {2026},
       note = {R package version 0.0.0.9000},
-      url = {https://pedrobtz.github.io/zumsgpack/},
+      url = {https://github.com/pedrobtz/zumsgpack},
     }
