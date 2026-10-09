@@ -72,7 +72,8 @@ or map used as a key is compared by its encoded bytes.
 
 MessagePack defines no canonical form, so there is no `deterministic`
 argument: zumsgpack's encoder follows rules of its own (see
-`msgpack_encode()`), which a decoder is not entitled to expect.
+[`msgpack_encode()`](https://pedrobtz.github.io/zumsgpack/reference/msgpack_encode.md)),
+which a decoder is not entitled to expect.
 
 ## Examples
 

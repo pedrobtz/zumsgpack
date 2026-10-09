@@ -25,3 +25,11 @@
   and
   [`msgpack_bigint()`](https://pedrobtz.github.io/zumsgpack/reference/msgpack-values.md)
   construct the values R has no type for (roadmap Stage 2).
+- [`msgpack_encode()`](https://pedrobtz.github.io/zumsgpack/reference/msgpack_encode.md)
+  and
+  [`msgpack_encode_seq()`](https://pedrobtz.github.io/zumsgpack/reference/msgpack_encode.md)
+  write R values deterministically: the smallest integer form,
+  `float 64` (or `float 32` when exact, with `floats = "shortest"`), one
+  canonical NaN, `str` and `bin`, and map entries sorted by their
+  encoded keys with no duplicates. The output buffer is zubin’s, owned
+  by an external pointer (roadmap Stage 3).
