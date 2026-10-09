@@ -506,6 +506,14 @@ void zmp_encode_value(zmp_encoder *e, SEXP x, int depth)
 {
     if (zmp_convert_hook(e, &x, depth))
         return;
+    zmp_encode_converted(e, x, depth);
+}
+
+/* x as it is, with no as_msgpack() call for x itself: an as_msgpack()
+ * method's result comes here, so its class is not converted again, though
+ * its elements are. */
+void zmp_encode_converted(zmp_encoder *e, SEXP x, int depth)
+{
     switch (TYPEOF(x)) {
     case NILSXP:
         zmp_put_byte(e, 0xc0);
@@ -597,26 +605,6 @@ void zmp_encode_value(zmp_encoder *e, SEXP x, int depth)
 }
 
 /* ---- the parts later stages fill ------------------------------------------------- */
-
-/* POSIXct and Date (Stage 4): refused until the timestamp encoding exists,
- * so no interim form is ever relied on (roadmap Stage 3). */
-void zmp_put_time(zmp_encoder *e, SEXP x, double v, int depth)
-{
-    (void) x;
-    (void) v;
-    (void) depth;
-    zmp_fail_encode(e, ZMP_ERR_UNSUPPORTED_TYPE,
-                    "POSIXct and Date are not encoded in this version");
-}
-
-/* as_msgpack() (Stage 4): no conversion yet. */
-int zmp_convert_hook(zmp_encoder *e, SEXP *x, int depth)
-{
-    (void) e;
-    (void) x;
-    (void) depth;
-    return 0;
-}
 
 /* Data frames (Stage 6): refused, so a data frame never falls through to
  * the named-list path and comes out as a map of columns. */

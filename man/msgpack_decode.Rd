@@ -9,22 +9,26 @@ msgpack_decode(
   x,
   simplify = c("preserve", "none"),
   map_keys = c("auto", "map", "string"),
+  ext = c("convert", "keep"),
   big_integers = c("bigint", "double", "error"),
   duplicate_keys = FALSE,
   max_depth = 256L,
   max_size = 64 * 1024^2,
-  max_items = 1e+06
+  max_items = 1e+06,
+  ext_handlers = NULL
 )
 
 msgpack_decode_seq(
   x,
   simplify = c("preserve", "none"),
   map_keys = c("auto", "map", "string"),
+  ext = c("convert", "keep"),
   big_integers = c("bigint", "double", "error"),
   duplicate_keys = FALSE,
   max_depth = 256L,
   max_size = 64 * 1024^2,
-  max_items = 1e+06
+  max_items = 1e+06,
+  ext_handlers = NULL
 )
 }
 \arguments{
@@ -42,6 +46,10 @@ entry by its \code{str} key, or by a text rendering of any other key (\code{1},
 \code{1.0}, \code{nil}, \verb{h'00ff'}, \verb{ext(5, h'01')}, \verb{[1, "a"]}); it is lossy, and
 refuses a map whose keys collide once named.}
 
+\item{ext}{\code{"convert"} turns timestamps (ext -1) into \code{POSIXct} and
+keeps other exts as \code{msgpack_ext}; \code{"keep"} makes every ext a
+\code{msgpack_ext}.}
+
 \item{big_integers}{What to do with an integer beyond 2^53, which a
 double cannot hold exactly: \code{"bigint"} returns a \code{msgpack_bigint},
 \code{"double"} the nearest double, and \code{"error"} refuses the input.}
@@ -56,6 +64,10 @@ extension objects. At most \code{zumsgpack_info()$max_depth_cap}.}
 
 \item{max_items}{Most objects allowed, counting every array, map, key,
 value and element, or \code{Inf}.}
+
+\item{ext_handlers}{\code{NULL}, or a list of functions of one argument, named
+by extension type from \code{"-128"} to \code{"127"}, such as
+\code{list("5" = function(data) ...)}. See "Extension handlers".}
 }
 \value{
 The decoded value; for \code{msgpack_decode_seq()}, a list with one
@@ -80,7 +92,8 @@ allocate for data the input does not hold.
    array \tab atomic vector when the elements agree, else \code{list} \cr
    map with non-empty, unique \code{str} keys \tab named \code{list} \cr
    any other map \tab \code{msgpack_map} (by \code{map_keys}) \cr
-   ext \tab \code{msgpack_ext} \cr
+   ext -1 (timestamp) \tab \code{POSIXct}, UTC \cr
+   any other ext \tab \code{msgpack_ext}, or a handler's result \cr
 }
 
 
@@ -96,6 +109,35 @@ encoder writes it back as an array rather than a single value.
 
 A \code{str} holding U+0000 cannot be an R string and is
 \code{zumsgpack_unrepresentable}.
+
+The timestamp extension (type -1) has three layouts: \verb{timestamp 32}
+(seconds), \verb{timestamp 64} (34-bit seconds, 30-bit nanoseconds) and
+\verb{timestamp 96} (64-bit signed seconds, 32-bit nanoseconds). A \code{POSIXct}
+is a double, so nanoseconds are kept only to double precision, about
+2^-22 s near 2026; a handler for \code{"-1"} can keep the fields exactly.
+}
+
+\section{Extension handlers}{
+
+\code{ext_handlers} gives meaning to extension types zumsgpack does not
+convert, or replaces the timestamp conversion. Each handler is called
+with the ext's payload as a raw vector -- an ext has no structure beyond
+its bytes -- and its result takes the ext's place:
+
+\if{html}{\out{<div class="sourceCode">}}\preformatted{msgpack_decode(x, ext_handlers = list(
+  "5"  = function(data) rawToChar(data),
+  "-1" = function(data) data               # keep timestamps as bytes
+))
+}\if{html}{\out{</div>}}
+
+A handler runs only once the whole input has been checked, so it never
+sees a payload from an object with a bad length or a duplicate key. Its
+result never joins an array's simplification: an array holding one is a
+list. A handler applies whatever \code{ext} says. An error in a handler
+becomes \code{zumsgpack_handler_error}, with the type as \code{type} and the
+original condition as \code{parent}. A handler that calls \code{msgpack_decode()}
+again, for MessagePack embedded in an ext, passes that call its own
+limits. \code{\link[=as_msgpack]{as_msgpack()}} is the encoding half.
 }
 
 \examples{
@@ -106,6 +148,11 @@ msgpack_decode(as.raw(c(0x81, 0xa1, 0x61, 0xc3)))        # {"a": true}
 msgpack_decode(as.raw(c(0x81, 0x01, 0xd0, 0xf9)))        # {1: -7}
 
 msgpack_decode_seq(as.raw(c(0x01, 0xa1, 0x61)))          # 1, then "a"
+
+# A timestamp, and the same bytes kept as an ext.
+ts <- as.raw(c(0xd6, 0xff, 0x5a, 0x4a, 0xf6, 0xa5))
+msgpack_decode(ts)
+msgpack_decode(ts, ext = "keep")
 }
 \seealso{
 \code{\link[=msgpack_validate]{msgpack_validate()}}, \code{\link[=msgpack_read]{msgpack_read()}}, \link{msgpack-values},

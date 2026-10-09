@@ -25,7 +25,10 @@ typedef struct {
     const zmp_plan *plan;
     size_t next_count;
     int simplify, map_keys, big_integers, duplicate_keys;
+    int ext_convert;            /* ext = "convert": type -1 is a POSIXct */
+    SEXP *handlers;             /* 256 slots by type + 128, or NULL */
     SEXP call;
+    SEXP ns;                    /* where zmp_run_handler() is called from */
     uint64_t items;
 } zmp_builder;
 

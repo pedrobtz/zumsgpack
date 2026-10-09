@@ -142,3 +142,19 @@ mixed_value <- function() {
     zz = I("boxed"), aa = c(b = 1L, a = 2L)
   )
 }
+
+utc <- function(secs) structure(secs, class = c("POSIXct", "POSIXt"), tzone = "UTC")
+
+# A value exercising every Stage 4 encoder path, for the second
+# cross-platform fixture: each timestamp layout and its boundaries, Dates,
+# a class with an as_msgpack() method, and exts.
+mixed_value_4 <- function() {
+  list(
+    when = utc(c(0, 1, 2^32 - 1, 2^32, 0.5, 1e-9 * 3, 2^34 - 1, 2^34, -1, -1.5,
+                 1514862245.678901, -62167219200, 253402300799, NA)),
+    day = as.Date(c("1970-01-01", "2024-02-29", "1900-01-01", "2200-12-31", NA)),
+    boxed = I(utc(1)),
+    cls = structure(list(a = 1L), class = "zmp_test_point"),
+    ext = list(msgpack_ext(-1, as.raw(c(0, 0, 0, 1))), msgpack_ext(42, as.raw(1:3)))
+  )
+}

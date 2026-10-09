@@ -522,7 +522,7 @@ chunks, the odd-map guard, tag-content rules, half floats, simple values,
 
 ## Stage 4 — Timestamps, exts, handlers, `as_msgpack()` · M
 
-**Status:** not started.
+**Status:** complete.
 
 **Do**
 
@@ -569,6 +569,38 @@ chunks, the odd-map guard, tag-content rules, half floats, simple values,
 - gctorture, `rchk`, UBSan and ASan clean over the handler and method
   paths; the interrupt test passes with a handler in the input.
 - Stage 3's fixture is unchanged.
+
+**What actually happened**
+
+- **The rule for nanoseconds is written into §8 rule 5:** `floor()` for
+  the seconds, the fraction times 10^9 rounded half away from zero, a
+  carry at 10^9. Each step is one correctly rounded IEEE operation (the
+  subtraction is exact by Sterbenz's lemma), so the bytes cannot depend
+  on the host. Tests pin the edges: `1 - 2^-40` is the whole second 1,
+  2^-31 s rounds to no nanoseconds and 2^-29 s to 2, −1.5 s is −2 s plus
+  500,000,000 ns, and the 32- and 34-bit boundaries choose their layouts.
+- **Which suite timestamps survive a double is now measured, not argued.**
+  Every case with whole seconds is a fixed point, and so is every case
+  within 2^20 s of the epoch; `1514862245.678901234` is not, since near
+  2018 a double resolves about 2^-22 s. That is §7.2's documented loss,
+  and a `"-1"` handler keeps the fields exactly (a test reads all three
+  layouts that way), which closes §18 Q1 as recommended: no `timestamp =`
+  argument.
+- **Handlers are a 256-slot table.** Types are small, so the build looks
+  a handler up by `type + 128` rather than by binary search as zucbor
+  does over 2^53 tag numbers. Names are still checked by their digits:
+  `"05"`, `"+5"` and `"5.0"` would all parse as 5.
+- **zucbor's design carried over unchanged** for the rest: a handler wins
+  over the conversion whatever `ext` says, its result is kind "other",
+  an error in it is `zumsgpack_handler_error` with `type` and `parent`,
+  a nested `msgpack_decode()` sees its own limits, and nothing runs before
+  the check has passed (a test shows a handler for a valid ext does not
+  run when a later key is a duplicate). `as_msgpack()` runs once, its
+  result is not converted again, a method returning its own class is
+  refused, and a method on a map key runs exactly once.
+- **The second fixture is 232 bytes**: every layout and boundary, pre-1970
+  instants, Dates, an `I()`-wrapped `POSIXct`, a class with a method, and
+  a raw ext −1. Stage 3's fixture did not change.
 
 ---
 

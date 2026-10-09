@@ -29,9 +29,10 @@ void zmp_put_map(zmp_encoder *e, SEXP keys, SEXP names, SEXP values, R_xlen_t n,
 void zmp_check_depth(zmp_encoder *e, int depth);
 int zmp_is_class(SEXP x, const char *cls);
 void zmp_encode_value(zmp_encoder *e, SEXP x, int depth);
+void zmp_encode_converted(zmp_encoder *e, SEXP x, int depth);
 void zmp_encode_element(zmp_encoder *e, SEXP x, R_xlen_t i, int depth);
 
-/* Filled by later stages. */
+/* zmp_ext.c (Stage 4) and the data-frame encoder (Stage 6). */
 void zmp_put_time(zmp_encoder *e, SEXP x, double v, int depth);
 int zmp_convert_hook(zmp_encoder *e, SEXP *x, int depth);
 void zmp_encode_data_frame(zmp_encoder *e, SEXP x, int depth);

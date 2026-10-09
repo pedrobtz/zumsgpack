@@ -20,3 +20,9 @@
   `bin`, and map entries sorted by their encoded keys with no duplicates.
   The output buffer is zubin's, owned by an external pointer (roadmap
   Stage 3).
+* Timestamps (ext type -1) decode to `POSIXct` in UTC and `POSIXct` and
+  `Date` encode as the smallest of the three layouts that holds the
+  instant, nanoseconds rounded by one rule on every host. `ext = "keep"`
+  leaves them as `msgpack_ext`. `ext_handlers` gives meaning to extension
+  types, and the `as_msgpack()` generic teaches the encoder a class
+  (roadmap Stage 4).

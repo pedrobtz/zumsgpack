@@ -8,7 +8,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"zmp_status_names", (DL_FUNC) &zmp_status_names, 0},
     {"zmp_head_table",   (DL_FUNC) &zmp_head_table,   0},
     {"zmp_check_raw",    (DL_FUNC) &zmp_check_raw,    5},
-    {"zmp_decode_raw",   (DL_FUNC) &zmp_decode_raw,   4},
+    {"zmp_decode_raw",   (DL_FUNC) &zmp_decode_raw,   5},
     {"zmp_encode_raw",   (DL_FUNC) &zmp_encode_raw,   4},
     {NULL, NULL, 0}
 };
