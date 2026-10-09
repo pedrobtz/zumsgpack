@@ -4,7 +4,10 @@
 #include "zmp.h"
 
 static const R_CallMethodDef CallEntries[] = {
-    {"zmp_build_info", (DL_FUNC) &zmp_build_info, 0},
+    {"zmp_build_info",   (DL_FUNC) &zmp_build_info,   0},
+    {"zmp_status_names", (DL_FUNC) &zmp_status_names, 0},
+    {"zmp_head_table",   (DL_FUNC) &zmp_head_table,   0},
+    {"zmp_check_raw",    (DL_FUNC) &zmp_check_raw,    5},
     {NULL, NULL, 0}
 };
 

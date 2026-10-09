@@ -1,0 +1,24 @@
+#!/bin/sh
+# The check phase built without R, under ASan and UBSan, over every seed in
+# every mode (roadmap Stage 1). Fails on any sanitizer report. Run from the
+# package root; needs zufast installed (or ZUFAST_INCLUDE) and Rscript for
+# the seeds.
+set -eu
+WORK=$(mktemp -d)
+trap 'rm -rf "$WORK"' EXIT
+Rscript tools/fuzz-seeds.R "$WORK/seeds"
+STANDALONE_CFLAGS="-fsanitize=address,undefined -fno-sanitize-recover=all -fno-omit-frame-pointer" \
+  tools/build-standalone "$WORK/probe"
+for mode in "" --seq --prefix --stream --dup; do
+  # One process per mode; the arena is reset after each input.
+  if ! "$WORK/probe" $mode "$WORK"/seeds/* > "$WORK/out.txt" 2>&1; then
+    tail -40 "$WORK/out.txt" >&2
+    echo "FAIL: the sanitized check phase failed in mode '${mode:-one}'" >&2
+    exit 1
+  fi
+  if grep -qE 'runtime error|AddressSanitizer|LeakSanitizer' "$WORK/out.txt"; then
+    grep -E 'runtime error|AddressSanitizer|LeakSanitizer' "$WORK/out.txt" | head >&2
+    exit 1
+  fi
+done
+echo "==> the R-free check phase is clean under ASan and UBSan over every seed in every mode"

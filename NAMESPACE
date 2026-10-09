@@ -2,5 +2,6 @@
 
 S3method(format,zumsgpack_info)
 S3method(print,zumsgpack_info)
+export(msgpack_validate)
 export(zumsgpack_info)
 useDynLib(zumsgpack, .registration = TRUE)

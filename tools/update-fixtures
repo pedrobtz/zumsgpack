@@ -1,0 +1,98 @@
+#!/usr/bin/env Rscript
+# Regenerate the fixtures in tests/testthat/fixtures/ from their pinned
+# upstream sources (design section 15: fixtures from other implementations,
+# never by hand). Usage, from the package root:
+#
+#   tools/update-fixtures [output-dir]      default: tests/testthat/fixtures
+#
+# Tests read only the committed files and never touch the network.
+# tools/run-conformance (Stage 6) regenerates into a temporary directory and
+# fails if the result differs from what is committed. Needs jsonlite and
+# network access.
+
+# kawanet/msgpack-test-suite: value-to-bytes cases for every format,
+# including the timestamp extension. Upstream ships its YAML already
+# converted to JSON (dist/msgpack-test-suite.json), which is what is read
+# here, so design section 18 Q4 needs no conversion of our own.
+SUITE_COMMIT <- "e04f6edeaae589c768d6b70fcce80aa786b7800e"
+SUITE_SHA256 <- "8ea4d7aea19f7cf447ffe1031a4818bf5fd8b99dc28baf2b4a33fe9d8e5a5874"
+
+args <- commandArgs(trailingOnly = TRUE)
+out <- if (length(args)) args[[1]] else file.path("tests", "testthat", "fixtures")
+dir.create(out, showWarnings = FALSE, recursive = TRUE)
+
+fetch_raw <- function(url) {
+  tmp <- tempfile()
+  on.exit(unlink(tmp))
+  utils::download.file(url, tmp, quiet = TRUE, mode = "wb")
+  readBin(tmp, "raw", file.size(tmp))
+}
+
+sha256 <- function(bytes) {
+  tmp <- tempfile()
+  on.exit(unlink(tmp))
+  writeBin(bytes, tmp)
+  # tools::sha256sum() needs R 4.5; fall back to the shell elsewhere.
+  if (exists("sha256sum", asNamespace("tools")))
+    unname(tools::sha256sum(tmp))
+  else sub(" .*$", "", system2("shasum", c("-a", "256", tmp), stdout = TRUE))
+}
+
+base <- sprintf("https://raw.githubusercontent.com/kawanet/msgpack-test-suite/%s/", SUITE_COMMIT)
+json <- fetch_raw(paste0(base, "dist/msgpack-test-suite.json"))
+got <- sha256(json)
+if (!identical(got, SUITE_SHA256))
+  stop("msgpack-test-suite.json does not match its pinned SHA-256: ", got)
+licence <- fetch_raw(paste0(base, "LICENSE"))
+
+suite <- jsonlite::fromJSON(rawToChar(json), simplifyVector = FALSE)
+
+# The expected value as R source text, read back with str2lang() by the
+# tests: a JSON number stays a double, a JSON string a character, and the
+# structure of arrays and objects is kept as nested lists.
+r_text <- function(v) {
+  paste(deparse(v, control = c("keepNA", "keepInteger", "niceNames", "digits17")),
+        collapse = "")
+}
+
+rows <- list()
+for (group in names(suite)) {
+  cases <- suite[[group]]
+  for (i in seq_along(cases)) {
+    case <- cases[[i]]
+    type <- setdiff(names(case), c("msgpack", "bignum", "number"))
+    value <- NULL
+    if ("bignum" %in% names(case)) {
+      type <- "bignum"
+      value <- case$bignum
+    } else if ("number" %in% names(case)) {
+      type <- "number"
+      value <- case$number
+    } else {
+      stopifnot(length(type) == 1L)
+      value <- case[[type]]
+    }
+    forms <- unlist(case$msgpack)
+    for (j in seq_along(forms)) {
+      rows[[length(rows) + 1L]] <- data.frame(
+        group = sub("\\.yaml$", "", group), case = i, form = j, type = type,
+        value = r_text(value), hex = gsub("-", " ", forms[[j]]),
+        stringsAsFactors = FALSE)
+    }
+  }
+}
+tab <- do.call(rbind, rows)
+utils::write.table(tab, file.path(out, "msgpack-test-suite.tsv"), sep = "\t",
+                   quote = FALSE, row.names = FALSE, fileEncoding = "UTF-8")
+writeBin(licence, file.path(out, "msgpack-test-suite-LICENSE"))
+
+manifest <- data.frame(
+  file = c("msgpack-test-suite.tsv", "msgpack-test-suite-LICENSE"),
+  source = c(paste0(base, "dist/msgpack-test-suite.json"), paste0(base, "LICENSE")),
+  source_sha256 = c(SUITE_SHA256, sha256(licence)),
+  licence = c("MIT", "MIT"),
+  stringsAsFactors = FALSE)
+utils::write.table(manifest, file.path(out, "MANIFEST.tsv"), sep = "\t",
+                   quote = FALSE, row.names = FALSE)
+cat(sprintf("==> %d cases, %d encodings written to %s\n",
+            length(unique(paste(tab$group, tab$case))), nrow(tab), out))

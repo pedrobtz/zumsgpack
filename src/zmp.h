@@ -12,13 +12,22 @@
 #include <R.h>
 #include <Rinternals.h>
 
-/* The hard ceiling on max_depth (design section 12): the build phase and the
- * encoder recurse once per level, so the ceiling keeps the C stack bounded.
- * 1023, as in zucbor, so a limit valid for one package is valid for both. */
-#define ZMP_MAX_DEPTH_CAP 1023
+/* ZMP_MAX_DEPTH_CAP, in zmp_check.h, is the hard ceiling on max_depth
+ * (design section 12): the build phase and the encoder recurse once per
+ * level, so the ceiling keeps the C stack bounded. 1023, as in zucbor, so a
+ * limit valid for one package is valid for both. */
+#include "zmp_check.h"
 
 /* ---- .Call entry points, registered in init.c ----------------------------- */
 
 SEXP zmp_build_info(void);
+SEXP zmp_status_names(void);
+SEXP zmp_head_table(void);
+SEXP zmp_check_raw(SEXP x, SEXP mode, SEXP duplicate_keys, SEXP max_depth,
+                   SEXP max_items);
+
+/* ---- zmp_cond.c ------------------------------------------------------------- */
+
+SEXP zmp_fault_sexp(const zmp_fault *fault);
 
 #endif
