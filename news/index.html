@@ -46,6 +46,7 @@
 <code><a href="../reference/msgpack_decode_prefix.html">msgpack_decode_prefix()</a></code> decodes the object a raw vector starts with and says how many bytes it used. <code><a href="../reference/msgpack_read_seq.html">msgpack_read_seq()</a></code> reads objects back to back; with <code>each =</code> it passes each one on as soon as it has been checked whole, in memory bounded by the largest object (roadmap Stage 5).</li>
 <li>
 <code>data_frame = TRUE</code> decodes an array of records as a data frame, within a <code>max_cells</code> budget checked before allocation; data frames encode as an array of maps. <code><a href="../reference/msgpack_annotate.html">msgpack_annotate()</a></code> prints an annotated hex dump. Python’s msgpack is the conformance oracle (roadmap Stage 6).</li>
+<li>Arrays of numbers decode faster and with a third of the memory: the check skips runs of fixed-size scalars by the head table, and the build writes an all-number array straight into its vector (roadmap Stage 7).</li>
 </ul></div>
   </main></div>
 
