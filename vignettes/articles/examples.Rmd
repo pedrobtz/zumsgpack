@@ -1,0 +1,118 @@
+---
+title: "Examples and recipes"
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+```{r}
+library(zumsgpack)
+```
+
+## Nanosecond timestamps
+
+A `POSIXct` is a double, which near 2026 resolves about 2^-22 seconds, so
+a timestamp's nanoseconds survive only approximately. When they matter,
+a handler for type `"-1"` keeps the fields exactly. The payload is one of
+three layouts:
+
+```{r}
+timestamp_fields <- function(data) {
+  be <- function(b) sum(as.numeric(b) * 256^(rev(seq_along(b)) - 1))
+  switch(as.character(length(data)),
+    "4"  = c(seconds = be(data), nanoseconds = 0),
+    "8"  = {
+      hi <- be(data[1:4])
+      c(seconds = (hi %% 4) * 2^32 + be(data[5:8]), nanoseconds = hi %/% 4)
+    },
+    "12" = c(seconds = msgpack_decode(c(as.raw(0xd3), data[5:12])),
+             nanoseconds = be(data[1:4])))
+}
+
+b <- as.raw(c(0xd7, 0xff, 0xa1, 0xdc, 0xd7, 0xc8, 0x5a, 0x4a, 0xf6, 0xa5))
+msgpack_decode(b)                                        # to double precision
+msgpack_decode(b, ext_handlers = list("-1" = timestamp_fields))
+```
+
+## A type of your own
+
+An extension type carries bytes under a number from 0 to 127 that both
+sides agree on. `as_msgpack()` writes it; `ext_handlers` reads it back.
+Here, UUIDs as type 37:
+
+```{r}
+uuid <- function(hex) structure(as.raw(strtoi(substring(gsub("-", "", hex),
+                                seq(1, 31, 2), seq(2, 32, 2)), 16L)), class = "uuid")
+format.uuid <- function(x, ...) {
+  h <- paste(sprintf("%02x", as.integer(unclass(x))), collapse = "")
+  paste(substring(h, c(1, 9, 13, 17, 21), c(8, 12, 16, 20, 32)), collapse = "-")
+}
+print.uuid <- function(x, ...) cat("<uuid>", format(x), "\n")
+as_msgpack.uuid <- function(x, ...) msgpack_ext(37, unclass(x))
+registerS3method("as_msgpack", "uuid", as_msgpack.uuid)
+
+id <- uuid("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+b <- msgpack_encode(list(id = id, n = 1L))
+msgpack_annotate(b)
+msgpack_decode(b, ext_handlers = list("37" = function(data) structure(data, class = "uuid")))
+```
+
+## A Fluentd forward stream
+
+Fluentd's forward protocol sends `[tag, [[time, record], ...]]` messages
+back to back, with the time as an `EventTime` extension (type 0: 32-bit
+seconds, then 32-bit nanoseconds). `msgpack_read_seq(each =)` reads one
+message at a time:
+
+```{r}
+event_time <- function(s, ns = 0) {
+  be32 <- function(v) as.raw(c(v %/% 2^24, (v %/% 2^16) %% 256, (v %/% 256) %% 256, v %% 256))
+  msgpack_ext(0, c(be32(s), be32(ns)))
+}
+wire <- msgpack_encode_seq(list(
+  list("app.access", list(list(event_time(1.7e9, 5e8), list(path = "/", status = 200L)),
+                          list(event_time(1.7e9 + 1), list(path = "/x", status = 404L)))),
+  list("app.error", list(list(event_time(1.7e9 + 2), list(message = "oops"))))
+))
+
+as_time <- function(d) {
+  be <- function(b) sum(as.numeric(b) * 256^(3:0))
+  as.POSIXct(be(d[1:4]) + be(d[5:8]) / 1e9, origin = "1970-01-01", tz = "UTC")
+}
+con <- rawConnection(wire)
+msgpack_read_seq(con, ext_handlers = list("0" = as_time), each = function(m) {
+  for (entry in m[[2]]) {
+    what <- if (is.null(entry[[2]]$path)) entry[[2]]$message else entry[[2]]$path
+    cat(m[[1]], format(entry[[1]], "%H:%M:%OS1"), what, "\n")
+  }
+})
+close(con)
+```
+
+## Tables
+
+An array of records -- one map per row, the way most services send a
+table -- becomes a data frame with `data_frame = TRUE`. A key a row lacks
+is `NA`, and a column of mixed kinds is a list column:
+
+```{r}
+rows <- msgpack_encode(list(
+  list(id = 1L, name = "a", score = 1.5),
+  list(id = 2L, name = "b"),
+  list(id = 3L, score = NULL, tags = c("x", "y"))
+))
+msgpack_decode(rows, data_frame = TRUE)
+```
+
+## MessagePack or CBOR
+
+zumsgpack follows zucbor's design: the same check-then-build decoder, the
+same limits, the same mapping to R and the same deterministic encoder. A
+protocol that can speak either changes a prefix:
+
+```{r, eval = requireNamespace("zucbor", quietly = TRUE)}
+x <- list(alg = -7L, kid = "11", when = as.POSIXct(0, tz = "UTC"))
+str(zucbor::cbor_decode(zucbor::cbor_encode(x)))
+str(msgpack_decode(msgpack_encode(x)))
+```

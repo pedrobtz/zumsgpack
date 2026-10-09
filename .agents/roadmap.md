@@ -864,7 +864,10 @@ nightly job accrues on the cached corpus (30 minutes a night).
 
 ## Stage 8 — Documentation and release 0.1.0 · S
 
-**Status:** not started.
+**Status:** complete up to submission. The release is blocked on the
+providers: neither `zufast` nor `zubin` is on CRAN, so `Remotes:` stays,
+acceptance criteria 1 and 10 cannot be verified yet, and the human steps
+below have not been taken.
 
 **Do**
 
@@ -903,6 +906,48 @@ into `/dev/` and the released docs stay at the root.
 - Zero NOTEs beyond "New submission".
 - Every §20 criterion has a row in the acceptance table.
 - Both cross-platform fixtures still match their Stage 3 and 4 bytes.
+
+**Acceptance criteria (design §20), each with what verifies it** (2026-10-09):
+
+| # | Criterion | Verified by |
+|---|---|---|
+| 1 | Builds everywhere with `zubin` and `zufast` from CRAN and nothing else at run time | **Not yet.** Builds on the full `R-CMD-check` matrix (macOS, Windows, Ubuntu release and oldrel-1, R-devel GCC 16 and clang 23 containers) with both providers from GitHub through `Remotes:`; nothing is needed at run time (`LinkingTo` only, no `Imports`). The CRAN half waits for the providers' releases |
+| 2 | No R object is allocated before the check phase has passed | Structural: `src/zmp_walk.c` compiles with no R headers (`tools/build-standalone`, the `standalone` job, the fuzz build), so it cannot allocate one. Behavioural: `test-limits.R`, a 4 GiB `str` head, 2^32 − 1-element array and map heads, and a `max_items` flood, all refused |
+| 3 | Every oversized, deep, truncated or malformed input fails through a classed `zumsgpack_error`; the fuzz gate has been seen to fail on its canary | `test-validate.R` (every proper prefix of every suite encoding, every invalid UTF-8 class, every timestamp fault), `test-limits.R`, `test-head.R` (all 256 lone bytes); `tools/run-fuzz`, whose canary must crash first, nightly on a cached corpus, plus a local ASan/UBSan replay of 1,008,513 inputs; `tools/run-standalone`; `tools/run-mutation-check` |
+| 4 | Duplicate keys are rejected by value by default | `test-duplicate-keys.R`, every comparison class including a positive value in a signed form and `float 32` against `float 64`; the `duplicate-keys` mutation case |
+| 5 | Encoding is deterministic by §8, byte-identical across platforms | `test-encode.R` (1,094 bytes) and `test-handlers.R` (232 bytes): checked-in encodings compared on every CI platform; `test-roundtrip.R`, 300 generated values each encoded twice; the NaN and nanosecond rules written into §8 |
+| 6 | Every case of the two interop corpora passes in both directions | `test-decode.R` and `test-timestamp.R` (every suite encoding), `test-roundtrip.R` (every suite case re-encodes to one of its encodings); `test-conformance.R` (all 91 Python objects decode to Python's own reading); the `conformance` job, where Python reads zumsgpack's encoding of every §7.1 row, with one rule-attributed difference (Python refuses the reserved ext types) |
+| 7 | Every documented mapping row has a test, and the three copies of each table agree | `test-decode.R` (§6.1), `test-encode.R` and `test-timestamp.R` (§7.1), `test-dataframe.R` (§6.4), `test-roundtrip.R` (§7.2) against `?msgpack_decode`, `?msgpack_encode` and design §6–§7. Agreement of the three copies is checked by review, not by a tool |
+| 8 | The round-trip properties hold across the corpus | `test-roundtrip.R`; `test-conformance.R`, where every Python object that is not a fixed point has a stated cause and the test pins exactly that set |
+| 9 | `R CMD check --as-cran` clean everywhere; `R_init_zumsgpack` is the only export; no stdio or exit symbols | The CI matrix; `tools/check-symbols` in the `gates` workflow, seen to fail on a planted `fprintf(stderr, …)` and a planted export |
+| 10 | The consumer fixture builds against the providers' CRAN tarballs | **Not yet**, for the reason in row 1: there are no CRAN tarballs to build against |
+
+Writing it out found two criteria (1 and 10) that cannot be met until the
+providers are released, one (7) that nothing checks mechanically, and one
+(3) met for fuzzing only as far as the nightly job has run. Each is
+stated as such rather than claimed.
+
+**What actually happened**
+
+- One vignette ships, *Decoding untrusted MessagePack* (check before
+  build, the limits, duplicate keys, streams, annotation); two articles
+  are pkgdown-only: getting started, and examples (a nanosecond `"-1"`
+  handler, UUIDs as a type of one's own, a Fluentd forward stream, a table,
+  and zucbor beside zumsgpack when it is installed).
+- `?msgpack_encode` gained the timestamp, `Date` and data-frame rows and
+  the full list of documented losses, which Stages 4 and 6 had left in
+  the design only.
+- `R CMD check --as-cran --run-donttest` is 0/0/0 locally at
+  `0.0.0.9000`. `inst/WORDLIST` holds 26 words the spell check flags, all
+  names of formats, packages and tools.
+- `cran-comments.md` is written for the day the providers are on CRAN; its
+  dependency paragraph says this package was checked against their CRAN
+  releases, which must be true before it is sent.
+
+**Before submission, in order:** release `zufast`, then `zubin`; remove
+`Remotes:` and restore `LinkingTo: zubin (>= 0.1.0)`; drop rchk's
+`github-packages`; rebuild against both CRAN tarballs (criteria 1 and 10)
+and update their rows; then the human steps above.
 
 ---
 

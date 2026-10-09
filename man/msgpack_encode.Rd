@@ -54,24 +54,32 @@ objects give identical bytes in every session and on every platform.
    \code{character} \tab \code{str}, UTF-8 \cr
    \code{raw} \tab one \code{bin}, whatever its length \cr
    \code{factor} \tab its labels, as \code{str} \cr
+   \code{POSIXct} \tab ext -1, the smallest of the three timestamp layouts that holds it \cr
+   \code{Date} \tab ext -1 at midnight UTC \cr
    \code{msgpack_bigint} \tab the integer form if within -2^63 .. 2^64 - 1, else refused \cr
    \code{msgpack_map}, \code{msgpack_ext} \tab a map, an ext \cr
    unnamed list or vector \tab array \cr
    fully named list or vector \tab map with \code{str} keys \cr
+   \code{data.frame} \tab array of maps, one per row \cr
 }
 
 
 A length-one atomic vector is a single value, not an array, unless it is
 wrapped in \code{\link[=I]{I()}} or \code{auto_unbox = FALSE}. A matrix is a flat array in
-column-major order.
+column-major order. A data frame is an array with one map per row, keyed
+by the column names; \code{NA} is \code{nil}, and row names are not written. An
+object whose class zumsgpack does not know goes through \code{\link[=as_msgpack]{as_msgpack()}}
+first, so a method can say how to write it; without one it is written as
+its underlying type.
 
 Whole doubles become integers because R has no integer literal: \code{-7}
 written in R is a double, and as a float it would be a different value
 from the integer a protocol expects. So \code{1L} and \code{1} encode identically.
 
 These have no MessagePack form and raise \code{zumsgpack_unsupported_type}:
-complex numbers, functions, environments, external pointers, S4 objects
-and \code{POSIXlt} (convert with \code{\link[=as.POSIXct]{as.POSIXct()}}). Names that are partly
+complex numbers, functions, environments, external pointers, S4 objects,
+\code{POSIXlt} (convert with \code{\link[=as.POSIXct]{as.POSIXct()}}) and a data frame column that is
+itself a matrix. Names that are partly
 missing, \code{NA} or empty are \code{zumsgpack_invalid_argument}, and two keys
 that encode identically are \code{zumsgpack_duplicate_key}.
 }
@@ -88,7 +96,10 @@ every \code{NaN} as one canonical quiet NaN, since R's \code{NaN} bits differ
 between platforms;
 \item \code{str} for text and \code{bin} for bytes, never the pre-2013 \code{raw};
 \item map entries sorted by the bytewise order of their encoded keys, with
-no duplicate keys.
+no duplicate keys;
+\item the smallest timestamp layout that holds the instant, after fixing it
+to whole nanoseconds by one rule: the seconds by \code{floor()}, the
+fraction rounded to the nearest nanosecond, a carry at 10^9.
 }
 
 These are zumsgpack's rules, not the format's: another decoder is not
@@ -102,8 +113,12 @@ platforms, which a signature or a content hash over the bytes needs.
 Decoding what \code{msgpack_encode()} wrote gives back the value, except
 that: \code{NA} comes back as \code{NULL}, or \code{NA} of the vector's type; a whole
 double comes back as an integer; \code{list(1L)} and \code{1L} both encode as \code{1};
-a \code{NaN} payload is not kept; and a \verb{float 32} input re-encodes as
-\verb{float 64} unless \code{floats = "shortest"}.
+a \code{NaN} payload is not kept; a \verb{float 32} input re-encodes as \verb{float 64}
+unless \code{floats = "shortest"}; a factor comes back as its labels; a
+\code{Date} comes back as a \code{POSIXct} at midnight UTC; a \code{POSIXct} keeps its
+fractional seconds only to double precision, about 2^-22 s near 2026;
+and a data frame loses its row names, its factor levels and its column
+order, since map keys are sorted.
 }
 
 \examples{
@@ -118,7 +133,11 @@ msgpack_encode(msgpack_map(list(1L), list(-7)))
 identical(msgpack_encode(list(b = 1, a = 2)), msgpack_encode(list(a = 2, b = 1)))
 
 msgpack_encode_seq(list(1, "a", TRUE))
+
+# A timestamp, and a table as an array of records.
+msgpack_encode(as.POSIXct("2026-01-01", tz = "UTC"))
+msgpack_encode(data.frame(id = 1:2, name = c("a", "b")))
 }
 \seealso{
-\code{\link[=msgpack_decode]{msgpack_decode()}}, \link{msgpack-values}.
+\code{\link[=msgpack_decode]{msgpack_decode()}}, \code{\link[=as_msgpack]{as_msgpack()}}, \link{msgpack-values}.
 }
