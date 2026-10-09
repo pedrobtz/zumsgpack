@@ -79,11 +79,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      # A venv: the scripts run Python with -I, which leaves out the user
+      # site-packages a plain pip install may have chosen.
       - name: Install the oracle, pinned
-        run: python -m pip install msgpack==1.1.1
+        run: |
+          python -m venv "$RUNNER_TEMP/oracle"
+          "$RUNNER_TEMP/oracle/bin/python" -m pip install msgpack==1.1.1
       - name: Install zumsgpack
         run: R CMD INSTALL .
-      # The interpreter by its absolute path: run from R, a bare `python`
-      # can resolve to another one, without msgpack.
       - name: Run
-        run: PYTHON="$pythonLocation/bin/python" tools/run-conformance
+        run: PYTHON="$RUNNER_TEMP/oracle/bin/python" tools/run-conformance
