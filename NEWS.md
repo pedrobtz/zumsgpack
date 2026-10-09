@@ -1,3 +1,4 @@
-# zumsgpack (development version)
+# zumsgpack 0.0.0.9000
 
-* Initial CRAN submission.
+* Package identity: `zumsgpack_info()`, and links to zufast and zubin
+  through `LinkingTo` (roadmap Stage 0).

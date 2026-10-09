@@ -1,14 +1,33 @@
 Package: zumsgpack
-Title: What the Package Does (One Line, Title Case)
+Title: Deterministic and Secure 'MessagePack' Encoding and Decoding
 Version: 0.0.0.9000
 Authors@R: 
-    person("First", "Last", , "first.last@example.com", role = c("aut", "cre"))
-Description: What the package does (one paragraph).
+    person("Pedro", "Baltazar", , "pedrobtz@gmail.com",
+           role = c("aut", "cre", "cph"))
+Description: Encodes R values as 'MessagePack' (<https://msgpack.org>) and
+    decodes 'MessagePack' into ordinary R vectors and lists. Decoding checks
+    the whole input against configurable depth, size and item limits before
+    any R object is built, so untrusted input from network peers cannot
+    drive large allocations. Encoding is deterministic: identical R objects
+    always produce identical bytes. Timestamps convert to and from 'POSIXct',
+    and extension types can be given meaning by user handlers.
 License: MIT + file LICENSE
-Encoding: UTF-8
-Roxygen: list(markdown = TRUE)
-RoxygenNote: 8.1.0
+URL: https://github.com/pedrobtz/zumsgpack,
+    https://pedrobtz.github.io/zumsgpack/
+BugReports: https://github.com/pedrobtz/zumsgpack/issues
+Depends: 
+    R (>= 4.1)
+LinkingTo: 
+    zubin,
+    zufast (>= 0.1.0)
 Suggests: 
-    testthat (>= 3.0.0)
+    testthat (>= 3.0.0),
+    withr
+Remotes: 
+    pedrobtz/zufast,
+    pedrobtz/zubin
 Config/testthat/edition: 3
-URL: https://pedrobtz.github.io/zumsgpack/
+Encoding: UTF-8
+Language: en-GB
+Roxygen: list(markdown = TRUE)
+Config/roxygen2/version: 8.1.0

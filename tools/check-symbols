@@ -1,0 +1,39 @@
+#!/bin/sh
+# Fail if the built shared object exports anything but R_init_zumsgpack
+# (design section 14, family rule R3), or references symbols R CMD check
+# objects to: output to the console (stdout, stderr, printf, puts, putchar)
+# or ending the process (abort, exit, _exit, and assert(), which reaches
+# them). Run it on an R CMD INSTALL build: devtools::load_all() compiles
+# with -UNDEBUG, which keeps assert()s in.
+#
+# Usage: tools/check-symbols [path/to/zumsgpack.so]  (default: src/zumsgpack.so)
+set -eu
+
+SO="${1:-src/zumsgpack.so}"
+[ -f "$SO" ] || { echo "no shared object at $SO; build the package first" >&2; exit 2; }
+
+# Leading underscores differ by platform (_printf on macOS), and __stdoutp /
+# __stderrp are macOS's names for stdout / stderr. Streams are listed as well
+# as functions: clang rewrites fprintf(stderr, ...) into fwrite, so the
+# stream is what gives it away (zucbor Stage 1).
+BAD='^_*(stdout|stderr|stdoutp|stderrp|printf|vprintf|puts|putchar|fputs|fprintf|vfprintf|abort|exit|_exit|_Exit|assert|assert_fail|assert_rtn)$'
+
+fail=0
+found=$(nm -u "$SO" | awk '{print $NF}' | grep -E "$BAD" || true)
+if [ -n "$found" ]; then
+  echo "FAIL: $SO references symbols R CMD check reports:" >&2
+  echo "$found" | sed 's/^/  /' >&2
+  fail=1
+fi
+
+# Defined, external text symbols: only the init function may be visible.
+exported=$(nm -g --defined-only "$SO" 2>/dev/null | awk '$2 == "T" {print $3}' \
+  | sed 's/^_//' | grep -v '^R_init_zumsgpack$' || true)
+if [ -n "$exported" ]; then
+  echo "FAIL: $SO exports symbols other than R_init_zumsgpack:" >&2
+  echo "$exported" | sed 's/^/  /' >&2
+  fail=1
+fi
+
+[ $fail = 0 ] || exit 1
+echo "==> $SO: exports only R_init_zumsgpack; no console-output or process-exit symbols"
