@@ -37,5 +37,6 @@ articles:
     navbar: ~
     contents:
       - articles/zumsgpack
+      - articles/usage
       - articles/examples
       - untrusted

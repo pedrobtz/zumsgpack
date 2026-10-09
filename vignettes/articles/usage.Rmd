@@ -1,0 +1,297 @@
+---
+title: "Usage examples"
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(collapse = TRUE, comment = "#>")
+```
+
+This article walks through zumsgpack's functions with small, runnable
+examples: encoding and decoding, how R values map to MessagePack and back,
+timestamps and extension types, files and streams, tables, and what
+happens when the input is bad.
+
+```{r}
+library(zumsgpack)
+```
+
+## Encode and decode
+
+`msgpack_encode()` turns an R value into a raw vector of MessagePack bytes,
+and `msgpack_decode()` turns bytes back into an R value.
+
+```{r}
+b <- msgpack_encode(list(id = 7L, name = "sensor", values = c(1.5, 2.25)))
+b
+length(b)
+str(msgpack_decode(b))
+```
+
+Decoding needs exactly one object; `msgpack_decode_seq()` reads zero or
+more objects written back to back, and `msgpack_encode_seq()` writes them.
+
+```{r}
+seq_bytes <- msgpack_encode_seq(list(1L, "two", TRUE))
+seq_bytes
+msgpack_decode_seq(seq_bytes)
+```
+
+## Vectors, lists and missing values
+
+An atomic vector is an array; a length-one vector is a single value unless
+it is wrapped in `I()` or `auto_unbox = FALSE`.
+
+```{r}
+msgpack_encode(1:3)
+msgpack_encode(5L)
+msgpack_encode(I(5L))
+msgpack_encode(5L, auto_unbox = FALSE)
+```
+
+On the way back, an array becomes an atomic vector when its elements agree
+and a list otherwise. A one-element array comes back marked with `I()`, so
+that encoding it again gives the same bytes.
+
+```{r}
+msgpack_decode(msgpack_encode(list(1L, 2.5)))     # numbers combine
+msgpack_decode(msgpack_encode(list(1L, "a")))     # mixed kinds: a list
+str(msgpack_decode(msgpack_encode(I(5L))))     # an array of one, marked I()
+```
+
+`NULL` and `NA` are both `nil`. Inside a vector, `nil` comes back as `NA`;
+on its own, as `NULL`.
+
+```{r}
+msgpack_encode(c(1L, NA, 3L))
+msgpack_decode(msgpack_encode(c(1L, NA, 3L)))
+msgpack_decode(msgpack_encode(NA))
+```
+
+Use `simplify = "none"` to get every array as a list.
+
+```{r}
+msgpack_decode(msgpack_encode(1:3), simplify = "none")
+```
+
+## Maps
+
+A fully named list or vector is a map with string keys, and a map whose
+keys are all non-empty, unique strings comes back as a named list.
+
+```{r}
+msgpack_decode(msgpack_encode(c(a = 1L, b = 2L)))
+```
+
+Map entries are written sorted by their encoded keys (shorter keys first),
+so the same values always give the same bytes, whatever order the list
+was built in:
+
+```{r}
+identical(msgpack_encode(list(b = 1, a = 2)), msgpack_encode(list(a = 2, b = 1)))
+```
+
+Maps with other keys -- integers, binary, nested values -- are
+`msgpack_map` objects, which keep the keys as they are. Build one with
+`msgpack_map()`:
+
+```{r}
+m <- msgpack_map(list(1L, 2L), list("one", "two"))
+b <- msgpack_encode(m)
+msgpack_decode(b)
+```
+
+`map_keys` changes how maps are decoded: `"map"` always gives a
+`msgpack_map`, and `"string"` always gives a named list, naming non-string
+keys by a text rendering of them.
+
+```{r}
+msgpack_decode(b, map_keys = "string")
+msgpack_decode(msgpack_encode(list(a = 1L)), map_keys = "map")
+```
+
+## Numbers
+
+Integers come back as `integer` when R's integer type holds them, as
+`double` up to 2^53, and beyond that as `msgpack_bigint`, which keeps the
+exact value as decimal text. `big_integers` chooses otherwise.
+
+```{r}
+big <- msgpack_encode(msgpack_bigint("18446744073709551615"))   # 2^64 - 1
+msgpack_decode(big)
+msgpack_decode(big, big_integers = "double")
+```
+
+A whole double is written as an integer, since R has no integer literal:
+`1` and `1L` encode the same. Other doubles are `float 64`; with
+`floats = "shortest"`, a `float 32` when it holds the value exactly.
+
+```{r}
+msgpack_encode(1)
+msgpack_encode(0.5)
+msgpack_encode(0.5, floats = "shortest")
+```
+
+## Strings and bytes
+
+Character vectors are UTF-8 `str`; raw vectors are `bin`.
+
+```{r}
+msgpack_encode("héllo")
+msgpack_decode(msgpack_encode(as.raw(c(0xde, 0xad, 0xbe, 0xef))))
+```
+
+## Timestamps and dates
+
+`POSIXct` is written as MessagePack's timestamp extension, in the smallest
+of its three layouts, and comes back as a `POSIXct` in UTC. A `Date` is a
+timestamp at midnight UTC.
+
+```{r}
+when <- as.POSIXct("2026-10-09 12:30:00.25", tz = "UTC")
+b <- msgpack_encode(when)
+b
+format(msgpack_decode(b), "%Y-%m-%d %H:%M:%OS3 %Z")
+msgpack_decode(msgpack_encode(as.Date("2026-10-09")))
+```
+
+`ext = "keep"` leaves timestamps as raw extension objects.
+
+```{r}
+msgpack_decode(b, ext = "keep")
+```
+
+## Extension types
+
+An extension object is a type number and some bytes. Types without a
+conversion come back as `msgpack_ext`, and `msgpack_ext()` builds one.
+
+```{r}
+e <- msgpack_ext(5, charToRaw("hi"))
+msgpack_decode(msgpack_encode(e))
+```
+
+`ext_handlers` gives a type meaning on decode: each handler gets the
+payload as a raw vector and returns any R value.
+
+```{r}
+msgpack_decode(msgpack_encode(list(e, e)), ext_handlers = list("5" = rawToChar))
+```
+
+The encoding half is the `as_msgpack()` generic: a method for your class
+returns something zumsgpack can encode, often a `msgpack_ext()`.
+
+```{r}
+point <- function(x, y) structure(list(x = x, y = y), class = "point")
+as_msgpack.point <- function(x, ...) {
+  msgpack_ext(7, writeBin(c(x$x, x$y), raw(), size = 4, endian = "big"))
+}
+registerS3method("as_msgpack", "point", as_msgpack.point)
+
+# "tip" is decoded before "origin": map keys are written sorted, shorter first.
+b <- msgpack_encode(list(origin = point(0, 0), tip = point(3, 4)))
+str(msgpack_decode(b, ext_handlers = list("7" = function(data) {
+  v <- readBin(data, "double", n = 2, size = 4, endian = "big")
+  point(v[1], v[2])
+})))
+```
+
+## Files and connections
+
+`msgpack_read()` reads one object from a path, URL or connection, and
+reads at most `max_size + 1` bytes, so an oversized file fails rather than
+filling memory.
+
+```{r}
+path <- tempfile(fileext = ".msgpack")
+writeBin(msgpack_encode(list(a = 1L, b = "x")), path)
+msgpack_read(path)
+```
+
+`msgpack_read_seq()` reads objects written back to back. Without `each`
+it returns a list; with `each`, every object is checked whole, decoded and
+passed to your function as soon as it arrives, so memory is bounded by the
+largest object rather than the whole stream.
+
+```{r}
+writeBin(msgpack_encode_seq(lapply(1:5, function(i) list(seq = i, ok = i %% 2 == 1))), path)
+msgpack_read_seq(path)[[2]]
+
+ok <- 0
+n <- msgpack_read_seq(path, each = function(m) if (m$ok) ok <<- ok + 1)
+c(read = n, ok = ok)
+unlink(path)
+```
+
+## The object at the start of a buffer
+
+When MessagePack sits inside other framing, `msgpack_decode_prefix()`
+decodes the first object and reports how many bytes it used, without
+reading what follows.
+
+```{r}
+x <- c(msgpack_encode(1:2), as.raw(c(0xde, 0xad, 0xbe, 0xef)))
+r <- msgpack_decode_prefix(x)
+r$value
+x[-seq_len(r$consumed)]
+```
+
+## Tables
+
+`data_frame = TRUE` turns an array of records -- one map per row -- into a
+data frame. A key a row lacks is `NA`, and a column of mixed kinds is a
+list column. A data frame encodes as such an array.
+
+```{r}
+df <- data.frame(id = 1:3, name = c("a", "b", NA), score = c(1.5, NA, 3))
+b <- msgpack_encode(df)
+msgpack_decode(b, data_frame = TRUE)
+```
+
+Columns come back in sorted key order, since map keys are sorted on
+encode.
+
+## Bad input
+
+Input is checked whole before anything is built. `msgpack_validate()` runs
+just that check and says whether it passed.
+
+```{r}
+msgpack_validate(msgpack_encode(1:3))
+msgpack_validate(as.raw(c(0x93, 0x01, 0x02)))   # promises 3 elements, has 2
+```
+
+Every error is a classed condition inheriting `zumsgpack_error`, with the
+byte offset of the fault, so it can be caught by kind.
+
+```{r}
+tryCatch(
+  msgpack_decode(as.raw(c(0x82, 0x01, 0xc0, 0x01, 0xc0))),   # {1: nil, 1: nil}
+  zumsgpack_duplicate_key = function(e) conditionMessage(e)
+)
+```
+
+Limits bound what an input can cost: `max_size` (bytes), `max_depth`
+(nesting), `max_items` (objects) and, for data frames, `max_cells`.
+
+```{r}
+deep <- c(rep(as.raw(0x91), 300), as.raw(0xc0))   # 300 nested arrays
+tryCatch(msgpack_decode(deep), zumsgpack_depth_limit = function(e) e$limit_value)
+msgpack_decode(deep, max_depth = 300L) |> class()
+```
+
+See `vignette("untrusted")` for more on decoding input you do not control.
+
+## Looking at the bytes
+
+`msgpack_annotate()` prints an annotated hex dump: each head's offset, its
+bytes, and what it is, indented by depth.
+
+```{r}
+msgpack_annotate(msgpack_encode(list(id = 7L, tags = c("a", "b"), when = when)))
+```
+
+## Build information
+
+```{r}
+zumsgpack_info()
+```
