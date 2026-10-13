@@ -31,7 +31,9 @@ form was given to the encoder.}
 \item{\code{zumsgpack_limit_error}}{A limit was reached. The subclasses
 \code{zumsgpack_depth_limit}, \code{zumsgpack_size_limit},
 \code{zumsgpack_item_limit} and \code{zumsgpack_cell_limit} name which one.}
-\item{\code{zumsgpack_io_error}}{Reading the input failed.}
+\item{\code{zumsgpack_io_error}}{Opening or reading the input failed: a URL
+or file that cannot be opened, such as one that answers HTTP 404, or a
+connection whose read raises an error.}
 }
 
 A condition raised while checking input carries \code{offset}, the 0-based

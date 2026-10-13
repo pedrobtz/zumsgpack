@@ -52,3 +52,20 @@ test_that("an open text-mode connection is refused", {
   on.exit(close(con))
   expect_error(msgpack_read(con), class = "zumsgpack_invalid_argument")
 })
+
+test_that("a URL that cannot be opened is an io error, without a warning", {
+  # A file:// URL is opened as a URL connection and fails, as an HTTP 404
+  # does, without needing the network.
+  missing <- paste0("file://", file.path(tempdir(), "no-such-file.msgpack"))
+  before <- nrow(showConnections(all = TRUE))
+  readers <- list(
+    msgpack_read,
+    msgpack_read_seq,
+    function(file) msgpack_read_seq(file, each = function(x) NULL)
+  )
+  for (read in readers) {
+    expect_no_warning(err <- tryCatch(read(missing), error = identity))
+    expect_s3_class(err, "zumsgpack_io_error")
+  }
+  expect_identical(nrow(showConnections(all = TRUE)), before)
+})

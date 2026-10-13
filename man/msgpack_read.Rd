@@ -26,7 +26,9 @@ memory.
 A string with an \code{http}, \code{https}, \code{ftp}, \code{ftps} or \code{file} scheme is read
 with \code{\link[=url]{url()}}, any other string as a file path. A connection that is not
 open is opened in \code{"rb"} mode and closed afterwards; an open one must be
-binary, is read from its current position, and is left open.
+binary, is read from its current position, and is left open. A URL or
+file that cannot be opened fails with \code{zumsgpack_io_error}, whose message
+gives the cause.
 }
 \examples{
 path <- tempfile(fileext = ".msgpack")

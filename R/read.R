@@ -8,7 +8,9 @@
 #' A string with an `http`, `https`, `ftp`, `ftps` or `file` scheme is read
 #' with [url()], any other string as a file path. A connection that is not
 #' open is opened in `"rb"` mode and closed afterwards; an open one must be
-#' binary, is read from its current position, and is left open.
+#' binary, is read from its current position, and is left open. A URL or
+#' file that cannot be opened fails with `zumsgpack_io_error`, whose message
+#' gives the cause.
 #'
 #' @param file A file path, a URL, or a connection.
 #' @param ... Arguments passed on to [msgpack_decode()].
@@ -30,7 +32,9 @@ msgpack_read <- function(file, ..., max_size = 64 * 1024^2) {
 zmp_read_bounded <- function(file, max_size, call) {
   zmp_arg_limit(max_size, "max_size", 2^53, allow_inf = TRUE, call)
   input <- zu_open_input(file, what = "file", prefix = "zumsgpack",
-                         abort = function(arg, message) zmp_invalid_argument(arg, message, call))
+                         abort = function(arg, message) zmp_invalid_argument(arg, message, call),
+                         fail = function(message) zmp_abort("zumsgpack_io_error",
+                           paste0("could not open input: ", message), call = call))
   if (input$close) on.exit(close(input$con), add = TRUE)
   chunk <- 65536L
   chunks <- list()

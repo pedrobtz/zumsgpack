@@ -457,7 +457,8 @@ the wrong length or with nanoseconds out of range),
 `zumsgpack_unsupported_type`, `zumsgpack_handler_error` (with `type` and
 `parent`), `zumsgpack_limit_error` with the subclasses
 `zumsgpack_depth_limit`, `zumsgpack_size_limit`, `zumsgpack_item_limit`
-and `zumsgpack_cell_limit`, and `zumsgpack_io_error`. Conditions from the
+and `zumsgpack_cell_limit`, and `zumsgpack_io_error` (a URL or file that
+cannot be opened, or a read that fails). Conditions from the
 check phase carry `offset` and `status`; `status` names zumsgpack's own
 enumerator, since there is no vendored library's table to map.
 
