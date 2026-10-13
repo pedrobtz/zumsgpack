@@ -29,7 +29,9 @@
 #'   \item{`zumsgpack_limit_error`}{A limit was reached. The subclasses
 #'     `zumsgpack_depth_limit`, `zumsgpack_size_limit`,
 #'     `zumsgpack_item_limit` and `zumsgpack_cell_limit` name which one.}
-#'   \item{`zumsgpack_io_error`}{Reading the input failed.}
+#'   \item{`zumsgpack_io_error`}{Opening or reading the input failed: a URL
+#'     or file that cannot be opened, such as one that answers HTTP 404, or a
+#'     connection whose read raises an error.}
 #' }
 #'
 #' A condition raised while checking input carries `offset`, the 0-based

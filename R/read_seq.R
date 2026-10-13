@@ -54,7 +54,9 @@ msgpack_read_seq <- function(file, ..., each = NULL, max_size = 64 * 1024^2) {
   }
   zmp_arg_limit(max_size, "max_size", 2^53, allow_inf = TRUE, call)
   input <- zu_open_input(file, what = "file", prefix = "zumsgpack",
-                         abort = function(arg, message) zmp_invalid_argument(arg, message, call))
+                         abort = function(arg, message) zmp_invalid_argument(arg, message, call),
+                         fail = function(message) zmp_abort("zumsgpack_io_error",
+                           paste0("could not open input: ", message), call = call))
   if (input$close) on.exit(close(input$con), add = TRUE)
   invisible(zmp_read_stream(input$con, each, max_size, list(...), call))
 }
