@@ -93,7 +93,9 @@ form was given to the encoder.</p></dd>
 <code>zumsgpack_item_limit</code> and <code>zumsgpack_cell_limit</code> name which one.</p></dd>
 
 <dt><code>zumsgpack_io_error</code></dt>
-<dd><p>Reading the input failed.</p></dd>
+<dd><p>Opening or reading the input failed: a URL
+or file that cannot be opened, such as one that answers HTTP 404, or a
+connection whose read raises an error.</p></dd>
 
 
 </dl><p>A condition raised while checking input carries <code>offset</code>, the 0-based

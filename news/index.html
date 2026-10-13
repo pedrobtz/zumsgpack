@@ -56,6 +56,8 @@
 <code>data_frame = TRUE</code> decodes an array of records as a data frame, within a <code>max_cells</code> budget checked before allocation; data frames encode as an array of maps. <code><a href="../reference/msgpack_annotate.html">msgpack_annotate()</a></code> prints an annotated hex dump. Python’s msgpack is the conformance oracle (roadmap Stage 6).</li>
 <li>Arrays of numbers decode faster and with a third of the memory: the check skips runs of fixed-size scalars by the head table, and the build writes an all-number array straight into its vector (roadmap Stage 7).</li>
 <li>Documentation: a vignette on decoding untrusted MessagePack, a getting-started article and an examples article (roadmap Stage 8).</li>
+<li>
+<code><a href="../reference/msgpack_read.html">msgpack_read()</a></code> and <code><a href="../reference/msgpack_read_seq.html">msgpack_read_seq()</a></code> raise <code>zumsgpack_io_error</code>, with the cause, for a URL or file that cannot be opened, such as an HTTP 404, instead of an unclassed error after a warning. The failed connection is closed at once (zuxml#74).</li>
 </ul></div>
   </main></div>
 

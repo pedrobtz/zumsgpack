@@ -50,7 +50,9 @@ Every class below inherits from `zumsgpack_error`.
 
 - `zumsgpack_io_error`:
 
-  Reading the input failed.
+  Opening or reading the input failed: a URL or file that cannot be
+  opened, such as one that answers HTTP 404, or a connection whose read
+  raises an error.
 
 A condition raised while checking input carries `offset`, the 0-based
 byte offset of the object at fault, and `status`, the name of the

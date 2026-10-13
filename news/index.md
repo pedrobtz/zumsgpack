@@ -59,3 +59,9 @@
   Stage 7).
 - Documentation: a vignette on decoding untrusted MessagePack, a
   getting-started article and an examples article (roadmap Stage 8).
+- [`msgpack_read()`](https://pedrobtz.github.io/zumsgpack/reference/msgpack_read.md)
+  and
+  [`msgpack_read_seq()`](https://pedrobtz.github.io/zumsgpack/reference/msgpack_read_seq.md)
+  raise `zumsgpack_io_error`, with the cause, for a URL or file that
+  cannot be opened, such as an HTTP 404, instead of an unclassed error
+  after a warning. The failed connection is closed at once (zuxml#74).
