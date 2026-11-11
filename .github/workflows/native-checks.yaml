@@ -3,13 +3,8 @@
 # Quick on each push to a pull request, full after merge; the full-ci label
 # runs the full set on a pull request.
 on:
-  push:
-    branches: [main, master]
-    paths-ignore:
-      - '**.md'
-      - 'vignettes/**'
-      - '_pkgdown.yml'
-      - '.agents/**'
+  # No `push:`: a pull request already checks its merge with main,
+  # and the schedule checks main (r-actions README, "Pushes to main").
   pull_request:
     types: [opened, synchronize, reopened, labeled]
     paths-ignore:
@@ -19,7 +14,7 @@ on:
       - '.agents/**'
   schedule:
     # Weekly, so a latent problem surfaces without waiting for a push.
-    - cron: "0 4 * * 3"
+    - cron: "15 12 * * 0"
   workflow_dispatch:
 
 name: native-checks
