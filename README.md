@@ -2,7 +2,7 @@
 
 <!-- badges: start -->
 [![R-CMD-check](https://github.com/pedrobtz/zumsgpack/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/pedrobtz/zumsgpack/actions/workflows/R-CMD-check.yaml)
-[![coverage](https://raw.githubusercontent.com/pedrobtz/zumsgpack/main/.github/badges/coverage.svg)](https://github.com/pedrobtz/zumsgpack/actions/workflows/coverage.yaml)
+[![coverage](https://raw.githubusercontent.com/pedrobtz/zumsgpack/gh-pages/badges/coverage.svg)](https://github.com/pedrobtz/zumsgpack/actions/workflows/coverage.yaml)
 <!-- badges: end -->
 
 zumsgpack reads and writes [MessagePack](https://msgpack.org), the compact
