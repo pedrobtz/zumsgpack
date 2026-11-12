@@ -461,7 +461,7 @@ msgpack_annotate(msgpack_encode(list(id = 7L, tags = c("a", "b"), when = when)))
 zumsgpack_info()
 #> <zumsgpack_info>
 #> zufast:    0.1.0
-#> zubin:     0.0.0
+#> zubin:     0.1.0
 #> max_depth: 256 (at most 1023)
 #> max_size:  67108864 bytes
 #> max_items: 1000000
