@@ -13,7 +13,7 @@ on:
   # and the schedule checks main (r-actions README, "Pushes to main").
   pull_request:
   schedule:
-    - cron: "10 12 * * *"
+    - cron: "10 12 * * 1"  # weekly, Mondays
   workflow_dispatch:
 
 name: hardening
